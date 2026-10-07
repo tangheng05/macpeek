@@ -231,11 +231,11 @@ final class AppModel {
         power = PowerInfo(percent: 82, charging: false, pluggedIn: false, minutesLeft: 312, cycleCount: 214,
                           health: 91, watts: 7.4, temperature: 31.2)
         apps = [
-            ProcessUsage(id: "safari", name: "Safari", pid: 1, bundlePath: "/Applications/Safari.app", cpu: 14.2, memory: 2_100_000_000),
-            ProcessUsage(id: "mail", name: "Mail", pid: 2, bundlePath: "/System/Applications/Mail.app", cpu: 3.1, memory: 410_000_000),
-            ProcessUsage(id: "music", name: "Music", pid: 3, bundlePath: "/System/Applications/Music.app", cpu: 6.8, memory: 380_000_000),
-            ProcessUsage(id: "finder", name: "Finder", pid: 4, bundlePath: "/System/Library/CoreServices/Finder.app", cpu: 0.4, memory: 160_000_000),
-            ProcessUsage(id: "notes", name: "Notes", pid: 5, bundlePath: "/System/Applications/Notes.app", cpu: 1.2, memory: 240_000_000),
+            ProcessUsage(id: "safari", name: "Safari", pid: 1, bundlePath: "/Applications/Safari.app", cpu: 14.2, memory: 2_100_000_000, power: 1.84),
+            ProcessUsage(id: "mail", name: "Mail", pid: 2, bundlePath: "/System/Applications/Mail.app", cpu: 3.1, memory: 410_000_000, power: 0.21),
+            ProcessUsage(id: "music", name: "Music", pid: 3, bundlePath: "/System/Applications/Music.app", cpu: 6.8, memory: 380_000_000, power: 0.62),
+            ProcessUsage(id: "finder", name: "Finder", pid: 4, bundlePath: "/System/Library/CoreServices/Finder.app", cpu: 0.4, memory: 160_000_000, power: 0.03),
+            ProcessUsage(id: "notes", name: "Notes", pid: 5, bundlePath: "/System/Applications/Notes.app", cpu: 1.2, memory: 240_000_000, power: 0.09),
         ]
         talkers = [
             AppTraffic(name: "Safari", download: 1_100_000, upload: 40_000),

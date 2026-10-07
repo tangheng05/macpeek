@@ -33,3 +33,42 @@ jobs:
         with:
           name: snapshots
           path: build/snapshots
+
+  # Brings up a real WireGuard tunnel and checks Macpeek sees it come and go. The peer doesn't
+  # exist and only 10.99.0.0/24 is routed through it, so the runner keeps its own network.
+  vpn:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build
+        run: swift build --product macpeek
+      - name: Install WireGuard
+        run: brew install wireguard-tools
+      - name: No VPN yet
+        run: |
+          swift run macpeek status --json | tee before.json
+          jq -e '.vpnConnected == false' before.json
+      - name: Tunnel up
+        run: |
+          cat > wgtest.conf <<EOF
+          [Interface]
+          PrivateKey = $(wg genkey)
+          Address = 10.99.0.2/24
+
+          [Peer]
+          PublicKey = $(wg genkey | wg pubkey)
+          Endpoint = 192.0.2.1:51820
+          AllowedIPs = 10.99.0.0/24
+          EOF
+          sudo env PATH="$PATH" wg-quick up "$PWD/wgtest.conf"
+          sleep 3
+          ifconfig | grep -A3 utun
+          scutil <<< 'list State:/Network/Interface/utun[0-9]+/IPv4'
+          swift run macpeek status --json | tee up.json
+          jq -e '.vpnConnected == true and (.vpnInterface | startswith("utun"))' up.json
+      - name: Tunnel down
+        run: |
+          sudo env PATH="$PATH" wg-quick down "$PWD/wgtest.conf"
+          sleep 3
+          swift run macpeek status --json | tee down.json
+          jq -e '.vpnConnected == false' down.json

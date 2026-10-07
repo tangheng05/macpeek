@@ -7,19 +7,21 @@ public struct RawProcess: Equatable, Sendable {
     public var path: String
     public var cpu: Double
     public var memory: UInt64
+    public var power: Double
 
-    public init(pid: Int32, path: String, cpu: Double, memory: UInt64) {
+    public init(pid: Int32, path: String, cpu: Double, memory: UInt64, power: Double = 0) {
         self.pid = pid
         self.path = path
         self.cpu = cpu
         self.memory = memory
+        self.power = power
     }
 }
 
-/// Per-app CPU and memory. Only run this while someone is looking: it touches every process.
+/// Per-app CPU, memory and power. Only run this while someone is looking: it touches every process.
 /// Processes owned by other users (root daemons) can't be read without a helper, so they're skipped.
 public final class ProcessSampler {
-    private var previous: [Int32: UInt64] = [:]
+    private var previous: [Int32: (cpu: UInt64, energy: UInt64)] = [:]
     private var previousTime: UInt64 = 0
 
     /// rusage CPU times are in Mach ticks, which aren't nanoseconds on Apple silicon.
@@ -35,17 +37,21 @@ public final class ProcessSampler {
     public func sample() -> [ProcessUsage] {
         let now = clock_gettime_nsec_np(CLOCK_UPTIME_RAW)
         let elapsed = previousTime == 0 ? 0 : Double(now - previousTime)
-        var current: [Int32: UInt64] = [:]
+        var current: [Int32: (cpu: UInt64, energy: UInt64)] = [:]
         var rows: [RawProcess] = []
         for pid in Self.allPIDs() where pid > 0 {
             guard let usage = Self.rusage(pid) else { continue }
             let cpuTime = UInt64(Double(usage.ri_user_time &+ usage.ri_system_time) * Self.nanosPerTick)
-            current[pid] = cpuTime
+            current[pid] = (cpuTime, usage.ri_energy_nj)
             var cpu = 0.0
-            if elapsed > 0, let old = previous[pid], cpuTime >= old {
-                cpu = Double(cpuTime - old) / elapsed * 100
+            var power = 0.0
+            if elapsed > 0, let old = previous[pid] {
+                if cpuTime >= old.cpu { cpu = Double(cpuTime - old.cpu) / elapsed * 100 }
+                // Nanojoules per nanosecond is watts. Intel Macs report no energy, so this stays 0.
+                if usage.ri_energy_nj >= old.energy { power = Double(usage.ri_energy_nj - old.energy) / elapsed }
             }
-            rows.append(RawProcess(pid: pid, path: Self.path(pid), cpu: cpu, memory: usage.ri_phys_footprint))
+            rows.append(RawProcess(pid: pid, path: Self.path(pid), cpu: cpu, memory: usage.ri_phys_footprint,
+                                   power: power))
         }
         previous = current
         previousTime = now
@@ -68,11 +74,12 @@ public final class ProcessSampler {
             if var app = apps[key] {
                 app.cpu += row.cpu
                 app.memory += row.memory
+                app.power += row.power
                 if isMain { app.pid = row.pid }
                 apps[key] = app
             } else {
                 apps[key] = ProcessUsage(id: key, name: displayName(path: bundle ?? key), pid: row.pid,
-                                         bundlePath: bundle, cpu: row.cpu, memory: row.memory)
+                                         bundlePath: bundle, cpu: row.cpu, memory: row.memory, power: row.power)
             }
         }
         return Array(apps.values)
@@ -98,11 +105,11 @@ public final class ProcessSampler {
         return found > 0 ? Array(pids.prefix(Int(found))) : []
     }
 
-    static func rusage(_ pid: Int32) -> rusage_info_v4? {
-        var info = rusage_info_v4()
+    static func rusage(_ pid: Int32) -> rusage_info_v6? {
+        var info = rusage_info_v6()
         let result = withUnsafeMutablePointer(to: &info) {
             $0.withMemoryRebound(to: rusage_info_t?.self, capacity: 1) {
-                proc_pid_rusage(pid, RUSAGE_INFO_V4, $0)
+                proc_pid_rusage(pid, RUSAGE_INFO_V6, $0)
             }
         }
         return result == 0 ? info : nil

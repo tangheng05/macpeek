@@ -4,7 +4,11 @@ import SwiftUI
 
 struct SystemSection: View {
     let model: AppModel
-    @State private var byMemory = false
+    @State private var sort = Sort.cpu
+
+    private enum Sort {
+        case cpu, memory, energy
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -18,9 +22,10 @@ struct SystemSection: View {
             if let memory = model.memory {
                 Meter(value: memory.fraction, color: pressureColor(memory.pressure))
             }
-            Picker("Sort", selection: $byMemory) {
-                Text("Top CPU").tag(false)
-                Text("Top Memory").tag(true)
+            Picker("Sort", selection: $sort) {
+                Text("CPU").tag(Sort.cpu)
+                Text("Memory").tag(Sort.memory)
+                if hasEnergy { Text("Energy").tag(Sort.energy) }
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -37,7 +42,7 @@ struct SystemSection: View {
                             .frame(width: 16, height: 16)
                         Text(app.name).lineLimit(1)
                         Spacer()
-                        Text(byMemory ? Format.memory(app.memory) : String(format: "%.1f%%", app.cpu))
+                        Text(value(app))
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
@@ -49,8 +54,27 @@ struct SystemSection: View {
     }
 
     private var topApps: [ProcessUsage] {
-        let sorted = model.apps.sorted { byMemory ? $0.memory > $1.memory : $0.cpu > $1.cpu }
+        let sorted = model.apps.sorted {
+            switch sort {
+            case .cpu: $0.cpu > $1.cpu
+            case .memory: $0.memory > $1.memory
+            case .energy: $0.power > $1.power
+            }
+        }
         return Array(sorted.prefix(5))
+    }
+
+    /// Intel Macs don't count energy per process, so the tab only shows when there's data.
+    private var hasEnergy: Bool {
+        model.apps.contains { $0.power > 0 }
+    }
+
+    private func value(_ app: ProcessUsage) -> String {
+        switch sort {
+        case .cpu: String(format: "%.1f%%", app.cpu)
+        case .memory: Format.memory(app.memory)
+        case .energy: String(format: "%.2f W", app.power)
+        }
     }
 
     private var memoryText: String {

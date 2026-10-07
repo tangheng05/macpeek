@@ -41,14 +41,18 @@ public struct ProcessUsage: Identifiable, Equatable, Sendable {
     /// Percent of one core, like Activity Monitor (can pass 100).
     public var cpu: Double
     public var memory: UInt64
+    /// Watts, from the kernel's per-process energy counter. Always 0 on Intel.
+    public var power: Double
 
-    public init(id: String, name: String, pid: Int32, bundlePath: String?, cpu: Double, memory: UInt64) {
+    public init(id: String, name: String, pid: Int32, bundlePath: String?, cpu: Double, memory: UInt64,
+                power: Double = 0) {
         self.id = id
         self.name = name
         self.pid = pid
         self.bundlePath = bundlePath
         self.cpu = cpu
         self.memory = memory
+        self.power = power
     }
 }
 

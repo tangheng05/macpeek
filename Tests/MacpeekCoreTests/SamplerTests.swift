@@ -100,6 +100,32 @@ import Testing
         #expect(!sampler.sample().isEmpty)
     }
 
+    /// `yes` spins one core flat out, so it should read close to 100%, like Activity Monitor.
+    @Test func busyProcessReadsAboutOneCore() async throws {
+        let busy = Process()
+        busy.executableURL = URL(fileURLWithPath: "/usr/bin/yes")
+        busy.standardOutput = FileHandle.nullDevice
+        try busy.run()
+        defer { busy.terminate() }
+        let sampler = ProcessSampler()
+        _ = sampler.sample()
+        try await Task.sleep(for: .seconds(2))
+        let usage = try #require(sampler.sample().first { $0.pid == busy.processIdentifier })
+        print("yes: \(usage.cpu)% CPU, \(usage.power) W")
+        #expect(usage.cpu > 60)
+        #expect(usage.cpu < 130)
+        #expect(usage.memory > 0)
+    }
+
+    @Test func groupingSumsPower() {
+        let rows = [
+            RawProcess(pid: 1, path: "/Applications/Slack.app/Contents/MacOS/Slack", cpu: 1, memory: 1, power: 0.5),
+            RawProcess(pid: 2, path: "/Applications/Slack.app/Contents/Frameworks/Slack Helper.app/Contents/MacOS/Slack Helper",
+                       cpu: 1, memory: 1, power: 0.25),
+        ]
+        #expect(ProcessSampler.group(rows).first?.power == 0.75)
+    }
+
     @Test func batteryParsing() throws {
         let values: [String: Any] = [
             "Current Capacity": 80, "Max Capacity": 100, "Is Charging": false,
