@@ -32,6 +32,7 @@ final class AppWindow: NSObject, NSWindowDelegate {
             }
             window.isReleasedWhenClosed = false
             window.delegate = self
+            fitOnScreen(window)
             window.center()
             self.window = window
         }
@@ -40,6 +41,17 @@ final class AppWindow: NSObject, NSWindowDelegate {
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
+    }
+
+    /// Starts at the content's natural height, but never taller than the space between the
+    /// menu bar and the Dock; a form scrolls for the rest.
+    private func fitOnScreen(_ window: NSWindow) {
+        guard let content = window.contentViewController?.view,
+              let visible = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
+        let natural = content.fittingSize.height
+        let chrome = window.frame.height - window.contentLayoutRect.height
+        let height = min(natural, visible.height - chrome - 40)
+        window.setContentSize(NSSize(width: window.contentLayoutRect.width, height: height))
     }
 
     func close() {
