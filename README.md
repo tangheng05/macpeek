@@ -15,8 +15,6 @@
   <img src="https://img.shields.io/badge/license-MIT-555" alt="MIT license">
 </p>
 
-> Early work in progress. There is no release yet.
-
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/menubar-dark.png">
@@ -32,6 +30,20 @@
 </p>
 
 <sub>Screenshots are rendered by CI with sample data.</sub>
+
+## Install
+
+```sh
+brew install --cask tangheng05/tap/macpeek
+```
+
+Or without Homebrew:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/tangheng05/macpeek/main/install.sh | sh
+```
+
+Macpeek needs macOS 26 or later. It isn't notarized yet; both methods clear the quarantine flag so it opens without the "Open Anyway" step.
 
 ## What it shows
 
@@ -89,9 +101,9 @@ The cask update needs a `TAP_TOKEN` repository secret: a fine-grained token with
 
 - [x] Project setup, CI on a macOS 26 runner
 - [x] Phase 1: menu bar graph, UI snapshots, energy check and app icon in CI
-- [ ] Phase 2: popover with top apps
-- [ ] Phase 3: VPN detection, public IP, leak checks, alerts
-- [ ] Phase 4: network speed, disk, battery, thermal
+- [x] Phase 2: popover with top apps
+- [x] Phase 3: VPN detection, public IP, leak checks, alerts
+- [x] Phase 4: network speed, disk, battery, thermal
 - [x] Release workflow, launch at login, welcome window, global shortcut
 - [ ] Phase 5: first release on Homebrew
 - [ ] Later: real DNS leak test, Wi-Fi details, charge limit reminders, widgets
