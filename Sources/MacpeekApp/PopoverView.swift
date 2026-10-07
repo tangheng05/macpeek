@@ -6,6 +6,7 @@ struct PopoverView: View {
     let model: AppModel
     /// False while closed, so nothing inside keeps re-rendering in the background.
     let visible: Bool
+    var onResize: ((CGFloat) -> Void)?
 
     var body: some View {
         if visible {
@@ -22,6 +23,9 @@ struct PopoverView: View {
             }
             .padding(16)
             .frame(width: 320)
+            // Report the natural height even while the popover is still at its old size.
+            .fixedSize(horizontal: false, vertical: true)
+            .onGeometryChange(for: CGFloat.self, of: \.size.height) { onResize?($0) }
         } else {
             Color.clear.frame(width: 320, height: 1)
         }

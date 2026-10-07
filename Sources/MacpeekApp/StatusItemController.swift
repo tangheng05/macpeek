@@ -79,7 +79,6 @@ final class StatusItemController {
         // Only write on change; every write re-triggers this observation.
         if model.shortcutTaken != taken { model.shortcutTaken = taken }
         render()
-        if popover.isShown { DispatchQueue.main.async { self.fitPopover() } }
     }
 
     /// Only redraws when something visible changed: the item re-lays out on every new image.
@@ -115,7 +114,11 @@ final class StatusItemController {
 
     private func fitPopover() {
         guard hosting.rootView.visible else { return }
-        let size = hosting.sizeThatFits(in: NSSize(width: 320, height: 10_000))
+        resizePopover(height: hosting.sizeThatFits(in: NSSize(width: 320, height: 10_000)).height)
+    }
+
+    private func resizePopover(height: CGFloat) {
+        let size = NSSize(width: 320, height: height.rounded(.up))
         if popover.contentSize != size { popover.contentSize = size }
     }
 
@@ -163,14 +166,15 @@ final class StatusItemController {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
             watchOutsideClicks()
-            DispatchQueue.main.async { self.fitPopover() }
         }
     }
 
     /// Set on the hosting view directly, so the next measurement already sees the new content.
     private func setPopoverContent(visible: Bool) {
         guard hosting.rootView.visible != visible else { return }
-        hosting.rootView = PopoverView(model: model, visible: visible)
+        hosting.rootView = PopoverView(model: model, visible: visible) { [weak self] height in
+            self?.resizePopover(height: height)
+        }
     }
 
     private func watchOutsideClicks() {

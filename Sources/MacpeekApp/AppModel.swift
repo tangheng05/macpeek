@@ -164,7 +164,7 @@ final class AppModel {
         power = BatteryInfo.read()
         talkersTask = Task { [weak self] in
             while !Task.isCancelled {
-                let traffic = await NetworkSampler.topTalkers()
+                let traffic = await NetworkSampler.topTalkers(limit: NetworkSection.rows)
                 guard !Task.isCancelled, let self, self.popoverOpen else { return }
                 self.talkers = traffic
                 try? await Task.sleep(for: .seconds(2))
