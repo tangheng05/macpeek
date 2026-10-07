@@ -22,12 +22,16 @@ public struct MemoryUsage: Equatable, Sendable {
     public var used: UInt64
     public var total: UInt64
     public var pressure: MemoryPressure
+    /// How close macOS is to running out, 0...1. Unlike `used`, this stays low while spare RAM
+    /// is only holding caches.
+    public var pressureFraction: Double
     public var fraction: Double { total == 0 ? 0 : min(1, Double(used) / Double(total)) }
 
-    public init(used: UInt64, total: UInt64, pressure: MemoryPressure) {
+    public init(used: UInt64, total: UInt64, pressure: MemoryPressure, pressureFraction: Double = 0) {
         self.used = used
         self.total = total
         self.pressure = pressure
+        self.pressureFraction = pressureFraction
     }
 }
 
@@ -188,8 +192,8 @@ public struct PrivacyReport: Equatable, Sendable {
 
         public var title: String {
             switch self {
-            case .protected: "Fully Protected"
-            case .leaking: "VPN On, Leaking"
+            case .protected: "Protected"
+            case .leaking: "Leaking"
             case .unprotected: "Not Protected"
             }
         }

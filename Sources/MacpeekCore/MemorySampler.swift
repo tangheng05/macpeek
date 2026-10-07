@@ -44,7 +44,20 @@ public enum MemorySampler {
                                 compressed: UInt64(stats.compressor_page_count))
         return MemoryUsage(used: pages.usedBytes(pageSize: pageSize),
                            total: ProcessInfo.processInfo.physicalMemory,
-                           pressure: pressure())
+                           pressure: pressure(),
+                           pressureFraction: pressureFraction())
+    }
+
+    /// The same figure as `memory_pressure`'s "System-wide memory free percentage", inverted.
+    public static func pressureFraction() -> Double {
+        var free: Int32 = 100
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_level", &free, &size, nil, 0) == 0 else { return 0 }
+        return pressureFraction(freePercent: free)
+    }
+
+    static func pressureFraction(freePercent: Int32) -> Double {
+        Double(100 - min(100, max(0, freePercent))) / 100
     }
 
     /// The kernel's own pressure level, the one behind Activity Monitor's graph colour.

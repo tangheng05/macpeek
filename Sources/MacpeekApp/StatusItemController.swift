@@ -84,8 +84,8 @@ final class StatusItemController {
     /// Only redraws when something visible changed: the item re-lays out on every new image.
     private func render() {
         let state = MenuBarGraph.State(
-            cpu: model.cpuHistory.values.map { Int(($0 * 100).rounded()) },
-            ram: Int(((model.memory?.fraction ?? 0) * 100).rounded()),
+            cpu: Int((model.cpu.total * 100).rounded()),
+            ram: Int(((model.memory?.pressureFraction ?? 0) * 100).rounded()),
             pressure: model.memory?.pressure ?? .normal,
             network: model.showNetwork
                 ? .init(top: "↓ " + Format.rate(model.network.download), bottom: "↑ " + Format.rate(model.network.upload))
@@ -93,7 +93,6 @@ final class StatusItemController {
             disk: model.showDisk
                 ? model.disk.map { .init(top: "F: " + Format.bytes($0.free), bottom: "U: " + Format.bytes($0.used)) }
                 : nil,
-            vpn: model.showVPN ? model.vpn.connected : nil,
             colored: model.coloredMenuBar
         )
         guard state != rendered, let button = item.button else { return }
@@ -107,7 +106,7 @@ final class StatusItemController {
 
     private func spokenSummary() -> String {
         var parts = ["CPU \(Format.percent(model.cpu.total))"]
-        if let memory = model.memory { parts.append("Memory \(Format.percent(memory.fraction))") }
+        if let memory = model.memory { parts.append("Memory pressure \(Format.percent(memory.pressureFraction))") }
         parts.append(model.vpn.connected ? "VPN on" : "VPN off")
         return parts.joined(separator: ", ")
     }

@@ -5,6 +5,8 @@ public enum PublicIPLookup {
     static let primary = URL(string: "https://ipinfo.io/json")!
     static let fallback = URL(string: "https://freeipapi.com/api/json")!
     static let ipv6Only = URL(string: "https://api6.ipify.org")!
+    /// Reached by IP, so it still works when a VPN's DNS blocks lookup services. Country only.
+    static let lastResort = URL(string: "https://1.1.1.1/cdn-cgi/trace")!
 
     private static let session: URLSession = {
         let config = URLSessionConfiguration.ephemeral
@@ -16,6 +18,7 @@ public enum PublicIPLookup {
     public static func fetch() async -> IPInfo? {
         if let data = await get(primary), let info = parseIPInfo(data) { return info }
         if let data = await get(fallback), let info = parseFreeIPAPI(data) { return info }
+        if let data = await get(lastResort), let info = parseCloudflareTrace(data) { return info }
         return nil
     }
 
@@ -58,6 +61,18 @@ public enum PublicIPLookup {
         guard let raw = try? JSONDecoder().decode(Raw.self, from: data) else { return nil }
         return IPInfo(ip: raw.ipAddress, city: raw.cityName, region: raw.regionName,
                       countryCode: raw.countryCode, isp: raw.asnOrganization)
+    }
+
+    /// `key=value` lines; `loc` is a country code, or XX/T1 when Cloudflare can't place it.
+    static func parseCloudflareTrace(_ data: Data) -> IPInfo? {
+        var fields: [Substring: Substring] = [:]
+        for line in String(decoding: data, as: UTF8.self).split(whereSeparator: \.isNewline) {
+            guard let equals = line.firstIndex(of: "=") else { continue }
+            fields[line[..<equals]] = line[line.index(after: equals)...]
+        }
+        guard let ip = fields["ip"], !ip.isEmpty else { return nil }
+        let country = fields["loc"].flatMap { $0 == "XX" || $0 == "T1" ? nil : String($0) }
+        return IPInfo(ip: String(ip), countryCode: country)
     }
 
     /// "AS2516 KDDI CORPORATION" -> "KDDI CORPORATION".

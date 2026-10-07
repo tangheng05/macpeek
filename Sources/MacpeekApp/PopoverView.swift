@@ -10,18 +10,17 @@ struct PopoverView: View {
 
     var body: some View {
         if visible {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 18) {
                 PrivacySection(model: model)
-                Divider()
                 SystemSection(model: model)
-                Divider()
+                TopAppsSection(model: model)
                 NetworkSection(model: model)
-                Divider()
-                PowerSection(model: model)
-                Divider()
+                if let power = model.power {
+                    BatterySection(power: power)
+                }
                 footer
             }
-            .padding(16)
+            .padding(14)
             .frame(width: 320)
             // Report the natural height even while the popover is still at its old size.
             .fixedSize(horizontal: false, vertical: true)
@@ -32,7 +31,8 @@ struct PopoverView: View {
     }
 
     private var footer: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
             if let release = model.updater.available {
                 if model.updater.viaHomebrew {
                     Button(model.updater.status == .copiedCommand ? "Copied" : "Copy Update Command") {
@@ -56,22 +56,64 @@ struct PopoverView: View {
     }
 }
 
-struct InfoRow: View {
-    let icon: String
+struct SectionHeader<Trailing: View>: View {
+    let title: String
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Spacer()
+            trailing
+        }
+    }
+}
+
+extension SectionHeader where Trailing == EmptyView {
+    init(_ title: String) {
+        self.init(title: title) { EmptyView() }
+    }
+}
+
+struct ValueRow: View {
     let label: String
     let value: String
-    var valueColor: Color = .primary
+    var valueColor: Color = .secondary
 
     var body: some View {
         HStack {
-            Label(label, systemImage: icon)
-                .foregroundStyle(.secondary)
-            Spacer()
+            Text(label)
+            Spacer(minLength: 12)
             Text(value)
                 .foregroundStyle(valueColor)
                 .monospacedDigit()
                 .lineLimit(1)
         }
+    }
+}
+
+/// One app in a ranked list; the top apps and network lists share it so they line up.
+struct AppRow: View {
+    static let height: CGFloat = 18
+    let icon: NSImage
+    let name: String
+    let value: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(nsImage: icon)
+                .resizable()
+                .frame(width: 16, height: 16)
+            Text(name).lineLimit(1)
+            Spacer(minLength: 12)
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .frame(height: Self.height)
     }
 }
 
@@ -123,5 +165,19 @@ enum AppIcons {
         let icon = NSWorkspace.shared.icon(forFile: path)
         cache[path] = icon
         return icon
+    }
+
+    /// nettop cuts process names to 15 characters ("Brave Browser H"), so match the longest
+    /// running app whose name starts the process name, then an installed app of that name.
+    static func app(forProcess name: String) -> (name: String, path: String?) {
+        let running = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { app in app.localizedName.map { (name: $0, path: app.bundleURL?.path) } }
+            .filter { name.hasPrefix($0.name) }
+            .max { $0.name.count < $1.name.count }
+        if let running { return running }
+        let installed = ["/Applications", "/System/Applications"].map { "\($0)/\(name).app" }
+            .first { FileManager.default.fileExists(atPath: $0) }
+        return (name, installed)
     }
 }

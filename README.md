@@ -18,7 +18,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/menubar-dark.png">
-    <img src="assets/menubar-light.png" width="440" alt="Macpeek in the menu bar: CPU graph, RAM bar, network speed, disk space and VPN shield">
+    <img src="assets/menubar-light.png" width="440" alt="Macpeek in the menu bar: CPU ring, memory pressure, network speed and disk space">
   </picture>
 </p>
 
@@ -47,14 +47,14 @@ Macpeek needs macOS 26 or later. It isn't notarized yet; both methods clear the 
 
 ## What it shows
 
-**In the menu bar:** a CPU history graph and a RAM bar, drawn in the same monochrome style as the system icons (or in colour, if you prefer). You can also add network speed, free and used disk space, and a VPN shield.
+**In the menu bar:** a CPU ring and a memory pressure level (how hard macOS is working to free up memory, not just how full RAM is), drawn in the same monochrome style as the system icons (or in colour, if you prefer). You can also add network speed and free and used disk space.
 
 **Click it for more:**
 
-- **Privacy.** Whether you're protected, your public IP (one click to copy), VPN status, location, ISP, a DNS route check and an IPv6 leak check. Run Full Test (⌘R) and Copy Report (⌘C).
-- **System.** CPU and memory with the top five apps by CPU, memory or energy. Helper processes are folded into their app, so Chrome counts as one.
+- **Privacy.** Whether you're protected, with your VPN and country at a glance. Open Details for your public IP (click to copy), location, provider, and whether DNS and IPv6 go through the VPN. Run Full Test (⌘R) and Copy Report (⌘C).
+- **System.** CPU, memory and disk, plus the top five apps by CPU, memory or energy. Helper processes are folded into their app, so Chrome counts as one. A heat warning appears only when your Mac is slowing down to cool.
 - **Network.** Live download and upload speed, and which apps are using it.
-- **Storage and power.** Free disk space, battery level, power draw in watts, health, cycle count, temperature and thermal state.
+- **Battery.** Charge, power draw in watts, health and cycle count.
 
 **Open it from anywhere** with ⌃⌥⌘M (change it in Settings), and have it start at login.
 

@@ -1,40 +1,35 @@
 import AppKit
 import MacpeekCore
 
-/// Draws the whole menu bar item as one image: CPU history, RAM fill, optional text columns
-/// and the VPN shield. By default it's a template image, so macOS tints it like its own items
+/// Draws the whole menu bar item as one image: a CPU ring, a memory level and optional text columns.
+/// By default it's a template image, so macOS tints it like its own items
 /// (light, dark, tinted, clicked). Colour is used only for a warning, or when the user opts in.
 enum MenuBarGraph {
-    static let historyLength = 28
-
     struct Column: Equatable {
         var top: String
         var bottom: String
     }
 
     struct State: Equatable {
-        /// Percent, oldest first.
-        var cpu: [Int]
+        /// Percent.
+        var cpu: Int
+        /// Memory pressure, percent.
         var ram: Int
         var pressure: MemoryPressure
         var network: Column?
         var disk: Column?
-        /// Nil hides the shield.
-        var vpn: Bool?
         var colored = false
 
-        /// A critical warning needs real red, which a template image can't carry.
-        var isTemplate: Bool { !colored && pressure != .critical }
+        /// A pressure warning needs real colour, which a template image can't carry.
+        var isTemplate: Bool { !colored && pressure == .normal }
     }
 
     private static let height: CGFloat = 18
-    private static let symbolWidth: CGFloat = 14
-    private static let cpuWidth: CGFloat = 28
-    private static let ramWidth: CGFloat = 20
-    private static let boxHeight: CGFloat = 13
-    private static let gap: CGFloat = 6
-    /// Apple's opacity for inactive menu bar states.
-    private static let dimmed: CGFloat = 0.35
+    /// Bjango's size for round menu bar items, which matches the weight of the system icons.
+    private static let ringSize: CGFloat = 16
+    private static let ringWidth: CGFloat = 2.5
+    private static let pillSize = NSSize(width: 7, height: 14)
+    private static let gap: CGFloat = 5
 
     @MainActor
     static func image(_ state: State) -> NSImage {
@@ -48,48 +43,24 @@ enum MenuBarGraph {
 
     @MainActor
     private static func width(_ state: State) -> CGFloat {
-        var width = symbolWidth + 2 + cpuWidth + gap + symbolWidth + 2 + ramWidth
+        var width = ringSize + gap + pillSize.width
         for column in [state.network, state.disk].compactMap({ $0 }) {
-            width += gap + columnWidth(column)
+            width += gap + 1 + columnWidth(column)
         }
-        if state.vpn != nil { width += gap + 15 }
         return ceil(width)
     }
 
     @MainActor
     private static func draw(_ state: State, in rect: NSRect) {
         let palette = Palette(state)
-        let boxY = (height - boxHeight) / 2
-        var x: CGFloat = 0
-
-        drawSymbol("cpu", color: palette.ink, in: NSRect(x: x, y: boxY, width: symbolWidth, height: boxHeight))
-        x += symbolWidth + 2
-        let cpuBox = NSRect(x: x, y: boxY, width: cpuWidth, height: boxHeight)
-        drawFrame(cpuBox, color: palette.frame)
-        drawHistory(state.cpu, in: cpuBox.insetBy(dx: 1.5, dy: 1.5), color: palette.cpu)
-        x = cpuBox.maxX + gap
-
-        drawSymbol("memorychip", color: palette.ink, in: NSRect(x: x, y: boxY, width: symbolWidth, height: boxHeight))
-        x += symbolWidth + 2
-        let ramBox = NSRect(x: x, y: boxY, width: ramWidth, height: boxHeight)
-        drawFrame(ramBox, color: palette.frame)
-        let inner = ramBox.insetBy(dx: 1.5, dy: 1.5)
-        var fill = inner
-        fill.size.height = inner.height * CGFloat(min(100, max(0, state.ram))) / 100
-        palette.ram.setFill()
-        NSBezierPath(roundedRect: fill, xRadius: 1.5, yRadius: 1.5).fill()
-        x = ramBox.maxX
-
+        drawRing(CGFloat(min(100, max(0, state.cpu))) / 100, color: palette.cpu, track: palette.faint)
+        var x = drawPill(fill: CGFloat(min(100, max(0, state.ram))) / 100, at: ringSize + gap,
+                         color: palette.ram, outline: palette.outline)
         if let network = state.network {
-            x = drawColumn(network, at: x + gap, colors: (palette.ink, palette.ink))
+            x = drawColumn(network, at: x + gap + 1, colors: (palette.ink, palette.ink))
         }
         if let disk = state.disk {
-            x = drawColumn(disk, at: x + gap, colors: state.colored ? (.systemOrange, .systemBlue) : (palette.ink, palette.ink))
-        }
-        if let vpn = state.vpn {
-            let color: NSColor = vpn ? (state.colored ? .systemGreen : palette.ink) : palette.ink.withAlphaComponent(dimmed)
-            drawSymbol(vpn ? "lock.shield" : "shield.slash", color: color,
-                       in: NSRect(x: x + gap, y: boxY, width: 15, height: boxHeight))
+            x = drawColumn(disk, at: x + gap + 1, colors: state.colored ? (.systemOrange, .systemBlue) : (palette.ink, palette.ink))
         }
     }
 
@@ -97,58 +68,58 @@ enum MenuBarGraph {
     @MainActor
     private struct Palette {
         let ink: NSColor
-        let frame: NSColor
+        let faint: NSColor
+        let outline: NSColor
         let cpu: NSColor
         let ram: NSColor
 
         init(_ state: State) {
             ink = state.isTemplate ? .black : .labelColor
-            frame = ink.withAlphaComponent(0.4)
+            faint = ink.withAlphaComponent(0.25)
+            outline = ink.withAlphaComponent(0.45)
             cpu = state.colored ? .systemBlue : ink
             switch (state.pressure, state.colored) {
             case (.critical, _): ram = .systemRed
-            case (.warning, true): ram = .systemYellow
+            case (.warning, _): ram = .systemYellow
             case (_, true): ram = .systemGreen
             default: ram = ink
             }
         }
     }
 
+    /// A faint full track with the load as a solid arc clockwise from the top. A sliver always
+    /// shows, so an idle Mac doesn't look like an empty ring.
     @MainActor
-    private static func drawSymbol(_ name: String, color: NSColor, in box: NSRect) {
-        let config = NSImage.SymbolConfiguration(pointSize: 11, weight: .medium)
-            .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
-        guard let symbol = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
-            .withSymbolConfiguration(config) else { return }
-        let size = symbol.size
-        symbol.draw(in: NSRect(x: box.midX - size.width / 2, y: box.midY - size.height / 2,
-                               width: size.width, height: size.height))
+    private static func drawRing(_ load: CGFloat, color: NSColor, track: NSColor) {
+        let center = NSPoint(x: ringSize / 2, y: height / 2)
+        let radius = (ringSize - ringWidth) / 2
+        let circle = NSBezierPath()
+        circle.appendArc(withCenter: center, radius: radius, startAngle: 0, endAngle: 360)
+        circle.lineWidth = ringWidth
+        track.setStroke()
+        circle.stroke()
+        let arc = NSBezierPath()
+        arc.appendArc(withCenter: center, radius: radius, startAngle: 90, endAngle: 90 - 360 * max(0.03, min(1, load)),
+                      clockwise: true)
+        arc.lineWidth = ringWidth
+        arc.lineCapStyle = .round
+        color.setStroke()
+        arc.stroke()
     }
 
+    /// Memory as a level, drawn like the battery glyph: a faint outline filled from the bottom.
     @MainActor
-    private static func drawFrame(_ box: NSRect, color: NSColor) {
-        color.setStroke()
-        let path = NSBezierPath(roundedRect: box.insetBy(dx: 0.5, dy: 0.5), xRadius: 3, yRadius: 3)
+    private static func drawPill(fill: CGFloat, at x: CGFloat, color: NSColor, outline: NSColor) -> CGFloat {
+        let box = NSRect(x: x, y: (height - pillSize.height) / 2, width: pillSize.width, height: pillSize.height)
+        outline.setStroke()
+        let path = NSBezierPath(roundedRect: box.insetBy(dx: 0.5, dy: 0.5), xRadius: 2.5, yRadius: 2.5)
         path.lineWidth = 1
         path.stroke()
-    }
-
-    /// Filled area, newest sample at the right edge.
-    @MainActor
-    private static func drawHistory(_ values: [Int], in box: NSRect, color: NSColor) {
-        guard values.count > 1 else { return }
-        let step = box.width / CGFloat(historyLength - 1)
-        let start = box.maxX - step * CGFloat(values.count - 1)
-        let path = NSBezierPath()
-        path.move(to: NSPoint(x: start, y: box.minY))
-        for (index, value) in values.enumerated() {
-            let y = box.minY + box.height * CGFloat(min(100, max(0, value))) / 100
-            path.line(to: NSPoint(x: start + step * CGFloat(index), y: y))
-        }
-        path.line(to: NSPoint(x: box.maxX, y: box.minY))
-        path.close()
+        let inner = box.insetBy(dx: 1.75, dy: 1.75)
         color.setFill()
-        path.fill()
+        NSBezierPath(roundedRect: NSRect(x: inner.minX, y: inner.minY, width: inner.width, height: max(1, inner.height * fill)),
+                     xRadius: 1.25, yRadius: 1.25).fill()
+        return box.maxX
     }
 
     @MainActor

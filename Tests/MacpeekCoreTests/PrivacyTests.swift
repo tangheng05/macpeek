@@ -81,6 +81,15 @@ import Testing
         #expect(info.isp == "Ezecom")
     }
 
+    @Test func parsesCloudflareTrace() throws {
+        let trace = "fl=961f22\nh=1.1.1.1\nip=152.42.217.118\ncolo=SIN\nloc=SG\nwarp=off\n"
+        let info = try #require(PublicIPLookup.parseCloudflareTrace(Data(trace.utf8)))
+        #expect(info == IPInfo(ip: "152.42.217.118", countryCode: "SG"))
+        // Cloudflare uses XX and T1 (Tor) when it can't place an address.
+        #expect(PublicIPLookup.parseCloudflareTrace(Data("ip=1.2.3.4\nloc=XX\n".utf8)) == IPInfo(ip: "1.2.3.4"))
+        #expect(PublicIPLookup.parseCloudflareTrace(Data("<html>blocked</html>".utf8)) == nil)
+    }
+
     @Test func verdicts() {
         let vpn = VPNState(connected: true, interface: "utun5")
         let ip = IPInfo(ip: "1.2.3.4")

@@ -8,14 +8,15 @@ import ServiceManagement
 final class AppModel {
     // System
     private(set) var cpu = CPUUsage.zero
-    private(set) var cpuHistory = History<Double>(capacity: MenuBarGraph.historyLength)
+    private(set) var cpuHistory = History<Double>(capacity: 28)
     private(set) var memory: MemoryUsage?
     private(set) var network = NetworkRate.zero
     private(set) var disk: DiskUsage?
     private(set) var power: PowerInfo?
     private(set) var thermal = Thermal.current()
     private(set) var apps: [ProcessUsage] = []
-    private(set) var talkers: [AppTraffic] = []
+    /// Nil until two snapshots exist to compare.
+    private(set) var talkers: [AppTraffic]?
 
     // Privacy
     private(set) var vpn = VPNState.off
@@ -32,7 +33,6 @@ final class AppModel {
     }
     var showNetwork: Bool { didSet { save(showNetwork, "showNetwork") } }
     var showDisk: Bool { didSet { save(showDisk, "showDisk") } }
-    var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
     var coloredMenuBar: Bool { didSet { save(coloredMenuBar, "coloredMenuBar") } }
     var alertVPN: Bool { didSet { save(alertVPN, "alertVPN") } }
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
@@ -70,13 +70,12 @@ final class AppModel {
     init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
-            "interval": 2.0, "showNetwork": false, "showDisk": false, "showVPN": true, "coloredMenuBar": false,
+            "interval": 2.0, "showNetwork": false, "showDisk": false, "coloredMenuBar": false,
             "alertVPN": true, "alertIPChange": true, "alertMemory": true, "alertThermal": false,
         ])
         interval = defaults.double(forKey: "interval")
         showNetwork = defaults.bool(forKey: "showNetwork")
         showDisk = defaults.bool(forKey: "showDisk")
-        showVPN = defaults.bool(forKey: "showVPN")
         coloredMenuBar = defaults.bool(forKey: "coloredMenuBar")
         alertVPN = defaults.bool(forKey: "alertVPN")
         alertIPChange = defaults.bool(forKey: "alertIPChange")
@@ -129,11 +128,17 @@ final class AppModel {
             lastTicks = ticks
         }
         if let reading = MemorySampler.read(), reading != memory { memory = reading }
-        if let counters = NetworkSampler.read() {
-            if let last = lastCounters {
-                network = NetworkSampler.rate(from: last.counters, to: counters, seconds: now.timeIntervalSince(last.time))
+        // Only shown in the popover or as an opt-in menu bar column.
+        if popoverOpen || showNetwork {
+            if let counters = NetworkSampler.read() {
+                if let last = lastCounters {
+                    network = NetworkSampler.rate(from: last.counters, to: counters, seconds: now.timeIntervalSince(last.time))
+                }
+                lastCounters = (counters, now)
             }
-            lastCounters = (counters, now)
+        } else if lastCounters != nil {
+            lastCounters = nil
+            network = .zero
         }
         tickCount += 1
         // Disk space barely moves and is the slowest read, so about once a minute.
@@ -157,16 +162,25 @@ final class AppModel {
 
     private func popoverChanged() {
         talkersTask?.cancel()
+        talkers = nil
         guard popoverOpen else { return }
         processSampler.reset()
         apps = processSampler.sample()
+        if lastCounters == nil, let counters = NetworkSampler.read() { lastCounters = (counters, .now) }
         disk = DiskInfo.read()
         power = BatteryInfo.read()
         talkersTask = Task { [weak self] in
+            var last: (counters: [String: NetworkCounters], time: Date)?
             while !Task.isCancelled {
-                let traffic = await NetworkSampler.topTalkers(limit: NetworkSection.rows)
+                let snapshot = await NetworkSampler.snapshot()
+                let now = Date.now
                 guard !Task.isCancelled, let self, self.popoverOpen else { return }
-                self.talkers = traffic
+                if let last {
+                    self.talkers = NetworkSampler.talkers(from: last.counters, to: snapshot,
+                                                          seconds: now.timeIntervalSince(last.time),
+                                                          limit: NetworkSection.rows * 3)
+                }
+                last = (snapshot, now)
                 try? await Task.sleep(for: .seconds(2))
             }
         }
@@ -261,10 +275,10 @@ final class AppModel {
     /// Fixed data for snapshot renders.
     func loadSample() {
         cpu = CPUUsage(user: 0.18, system: 0.07)
-        for index in 0..<MenuBarGraph.historyLength {
+        for index in 0..<cpuHistory.capacity {
             cpuHistory.append(0.12 + 0.1 * sin(Double(index) / 3) + (index > 20 ? 0.2 : 0))
         }
-        memory = MemoryUsage(used: 11_800_000_000, total: 17_179_869_184, pressure: .normal)
+        memory = MemoryUsage(used: 11_800_000_000, total: 17_179_869_184, pressure: .normal, pressureFraction: 0.24)
         network = NetworkRate(download: 1_240_000, upload: 86_000)
         disk = DiskUsage(free: 366_400_000_000, total: 494_380_000_000)
         power = PowerInfo(percent: 82, charging: false, pluggedIn: false, minutesLeft: 312, cycleCount: 214,

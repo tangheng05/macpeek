@@ -4,62 +4,125 @@ import SwiftUI
 
 struct SystemSection: View {
     let model: AppModel
-    @State private var sort = Sort.cpu
-    private static let rows = 5
-
-    private enum Sort {
-        case cpu, memory, energy
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            InfoRow(icon: "cpu", label: "CPU", value: Format.percent(model.cpu.total))
-            Sparkline(values: model.cpuHistory.values, capacity: model.cpuHistory.capacity)
-                .fill(.blue.gradient)
-                .frame(height: 28)
-                .background(.quaternary.opacity(0.4), in: .rect(cornerRadius: 4))
-            InfoRow(icon: "memorychip", label: "Memory", value: memoryText,
-                    valueColor: model.memory?.pressure == .critical ? .red : .primary)
+            SectionHeader("System")
+            GaugeRow(label: "CPU", value: Format.percent(model.cpu.total)) {
+                Sparkline(values: model.cpuHistory.values, capacity: model.cpuHistory.capacity)
+                    .fill(Color.accentColor.gradient)
+                    .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 3))
+            }
             if let memory = model.memory {
-                Meter(value: memory.fraction, color: pressureColor(memory.pressure))
-            }
-            Picker("Sort", selection: $sort) {
-                Text("CPU").tag(Sort.cpu)
-                Text("Memory").tag(Sort.memory)
-                if Self.hasEnergy { Text("Energy").tag(Sort.energy) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            let apps = topApps
-            ForEach(0..<Self.rows, id: \.self) { index in
-                if index < apps.count {
-                    row(apps[index])
-                } else if index == 0 {
-                    Text("Measuring…")
-                        .foregroundStyle(.secondary)
-                        .frame(height: 16)
-                } else {
-                    Color.clear.frame(height: 16)
+                GaugeRow(label: "Memory", value: Format.memory(memory.used)) {
+                    Meter(value: memory.pressureFraction, color: pressureColor(memory.pressure))
                 }
+                .help("\(Format.memory(memory.used)) of \(Format.memory(memory.total)) used. The bar is memory pressure, "
+                      + "\(Format.percent(memory.pressureFraction)): how hard macOS is working to free up memory.")
+            }
+            if let disk = model.disk {
+                let used = disk.total == 0 ? 0 : Double(disk.used) / Double(disk.total)
+                GaugeRow(label: "Disk", value: "\(Format.bytes(disk.free)) free") {
+                    Meter(value: used, color: used > 0.9 ? .orange : .gray)
+                }
+            }
+            if model.thermal.isThrottling {
+                ValueRow(label: "Heat", value: "Slowing down to cool", valueColor: .orange)
             }
         }
     }
 
-    private func row(_ app: ProcessUsage) -> some View {
-        Button { openActivityMonitor() } label: {
-            HStack(spacing: 8) {
-                Image(nsImage: AppIcons.icon(for: app.bundlePath))
-                    .resizable()
-                    .frame(width: 16, height: 16)
-                Text(app.name).lineLimit(1)
-                Spacer()
-                Text(value(app))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-            .contentShape(.rect)
+    private func pressureColor(_ pressure: MemoryPressure) -> Color {
+        switch pressure {
+        case .normal: .green
+        case .warning: .yellow
+        case .critical: .red
         }
-        .buttonStyle(.plain)
+    }
+}
+
+/// Label, a live gauge and its value, on columns shared by every row so the gauges line up.
+private struct GaugeRow<Gauge: View>: View {
+    let label: String
+    let value: String
+    @ViewBuilder var gauge: Gauge
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(label)
+                .frame(width: 54, alignment: .leading)
+            gauge
+                .frame(height: 16)
+            Text(value)
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .frame(width: 96, alignment: .trailing)
+        }
+    }
+}
+
+struct TopAppsSection: View {
+    let model: AppModel
+    @State private var sort = Sort.cpu
+    private static let rows = 5
+
+    private enum Sort: CaseIterable {
+        case cpu, memory, energy
+
+        var title: String {
+            switch self {
+            case .cpu: "CPU"
+            case .memory: "Memory"
+            case .energy: "Energy"
+            }
+        }
+    }
+
+    /// Intel Macs don't count energy per process. Decided up front so the menu never changes
+    /// shape: the first sample after opening reads zero for every app.
+    #if arch(arm64)
+    private static let sorts = Sort.allCases
+    #else
+    private static let sorts: [Sort] = [.cpu, .memory]
+    #endif
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SectionHeader(title: "Top apps") {
+                Menu {
+                    Picker("Sort by", selection: $sort) {
+                        ForEach(Self.sorts, id: \.self) { Text($0.title).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                } label: {
+                    Text("By \(sort.title)")
+                        .font(.subheadline)
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .foregroundStyle(.secondary)
+                .fixedSize()
+                .help("Sort by")
+            }
+            let apps = topApps
+            ForEach(0..<Self.rows, id: \.self) { index in
+                if index < apps.count {
+                    Button { openActivityMonitor() } label: {
+                        AppRow(icon: AppIcons.icon(for: apps[index].bundlePath), name: apps[index].name, value: value(apps[index]))
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Activity Monitor")
+                } else if index == 0 {
+                    Text("Measuring…")
+                        .foregroundStyle(.secondary)
+                        .frame(height: AppRow.height)
+                } else {
+                    Color.clear.frame(height: AppRow.height)
+                }
+            }
+        }
     }
 
     private var topApps: [ProcessUsage] {
@@ -73,32 +136,11 @@ struct SystemSection: View {
         return Array(sorted.prefix(Self.rows))
     }
 
-    /// Intel Macs don't count energy per process. Decided up front so the picker never changes
-    /// shape: the first sample after opening reads zero for every app.
-    #if arch(arm64)
-    private static let hasEnergy = true
-    #else
-    private static let hasEnergy = false
-    #endif
-
     private func value(_ app: ProcessUsage) -> String {
         switch sort {
         case .cpu: String(format: "%.1f%%", app.cpu)
         case .memory: Format.memory(app.memory)
         case .energy: String(format: "%.2f W", app.power)
-        }
-    }
-
-    private var memoryText: String {
-        guard let memory = model.memory else { return "—" }
-        return "\(Format.memory(memory.used)) of \(Format.memory(memory.total))"
-    }
-
-    private func pressureColor(_ pressure: MemoryPressure) -> Color {
-        switch pressure {
-        case .normal: .green
-        case .warning: .yellow
-        case .critical: .red
         }
     }
 

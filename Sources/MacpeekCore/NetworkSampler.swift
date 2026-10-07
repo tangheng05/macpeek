@@ -62,50 +62,58 @@ public enum NetworkSampler {
 
     // MARK: Per-app traffic
 
-    /// Bytes each app moved over about one second, from nettop. Spawns a process, so only call
-    /// it while the popover is open.
-    public static func topTalkers(limit: Int = 5) async -> [AppTraffic] {
+    /// Bytes each process has moved so far, keyed by nettop's `name.pid`. A single nettop sample
+    /// is nearly free; its delta mode (`-d -L 2`) burns over a second of CPU per call.
+    public static func snapshot() async -> [String: NetworkCounters] {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .utility).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-                process.arguments = ["-P", "-d", "-L", "2", "-s", "1", "-x", "-J", "bytes_in,bytes_out"]
+                process.arguments = ["-P", "-L", "1", "-x", "-J", "bytes_in,bytes_out"]
                 let pipe = Pipe()
                 process.standardOutput = pipe
                 process.standardError = FileHandle.nullDevice
                 do {
                     try process.run()
                 } catch {
-                    continuation.resume(returning: [])
+                    continuation.resume(returning: [:])
                     return
                 }
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 process.waitUntilExit()
-                let traffic = parseNettop(String(decoding: data, as: UTF8.self))
-                continuation.resume(returning: Array(traffic.prefix(limit)))
+                continuation.resume(returning: parseSnapshot(String(decoding: data, as: UTF8.self)))
             }
         }
     }
 
-    /// Reads the last sample of `nettop -P -x -J bytes_in,bytes_out` CSV, busiest first.
     /// Rows look like `Google Chrome H.1234,5120,880,`.
-    public static func parseNettop(_ output: String) -> [AppTraffic] {
-        let lines = output.split(whereSeparator: \.isNewline)
-        guard let header = lines.lastIndex(where: { $0.contains("bytes_in") }) else { return [] }
-        var apps: [String: AppTraffic] = [:]
-        for line in lines[lines.index(after: header)...] {
+    public static func parseSnapshot(_ output: String) -> [String: NetworkCounters] {
+        var result: [String: NetworkCounters] = [:]
+        for line in output.split(whereSeparator: \.isNewline) {
             let fields = line.split(separator: ",", omittingEmptySubsequences: false)
-            guard fields.count >= 3, let down = UInt64(fields[1]), let up = UInt64(fields[2]) else { continue }
-            var name = String(fields[0])
-            if let dot = name.lastIndex(of: "."), Int(name[name.index(after: dot)...]) != nil {
-                name = String(name[..<dot])
-            }
-            guard !name.isEmpty else { continue }
-            var app = apps[name] ?? AppTraffic(name: name, download: 0, upload: 0)
-            app.download += down
-            app.upload += up
-            apps[name] = app
+            guard fields.count >= 3, !fields[0].isEmpty, let down = UInt64(fields[1]), let up = UInt64(fields[2]) else { continue }
+            result[String(fields[0])] = NetworkCounters(received: down, sent: up)
         }
-        return apps.values.filter { $0.total > 0 }.sorted { $0.total > $1.total }
+        return result
+    }
+
+    /// Per-second traffic between two snapshots, helpers folded by name, busiest first.
+    public static func talkers(from old: [String: NetworkCounters], to new: [String: NetworkCounters],
+                               seconds: Double, limit: Int) -> [AppTraffic] {
+        guard seconds > 0 else { return [] }
+        var apps: [String: (down: UInt64, up: UInt64)] = [:]
+        for (key, counters) in new {
+            guard let before = old[key], counters.received >= before.received, counters.sent >= before.sent else { continue }
+            var name = key
+            if let dot = key.lastIndex(of: "."), Int(key[key.index(after: dot)...]) != nil { name = String(key[..<dot]) }
+            let total = apps[name] ?? (0, 0)
+            apps[name] = (total.down + counters.received - before.received, total.up + counters.sent - before.sent)
+        }
+        return apps
+            .map { AppTraffic(name: $0.key, download: UInt64(Double($0.value.down) / seconds), upload: UInt64(Double($0.value.up) / seconds)) }
+            .filter { $0.total > 0 }
+            .sorted { $0.total > $1.total }
+            .prefix(limit)
+            .map { $0 }
     }
 }

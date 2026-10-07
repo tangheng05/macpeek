@@ -41,6 +41,21 @@ import Testing
         #expect(MemorySampler.pressure(level: 4) == .critical)
     }
 
+    /// kern.memorystatus_level is the free percentage that `memory_pressure` prints.
+    @Test func pressureFromFreePercent() {
+        #expect(MemorySampler.pressureFraction(freePercent: 79) == 0.21)
+        #expect(MemorySampler.pressureFraction(freePercent: 100) == 0)
+        #expect(MemorySampler.pressureFraction(freePercent: 0) == 1)
+        #expect(MemorySampler.pressureFraction(freePercent: -5) == 1)
+        #expect(MemorySampler.pressureFraction(freePercent: 120) == 0)
+    }
+
+    @Test func liveMemoryPressure() throws {
+        let memory = try #require(MemorySampler.read())
+        #expect((0...1).contains(memory.pressureFraction))
+        #expect(memory.pressureFraction < 1)
+    }
+
     @Test func networkRate() {
         let old = NetworkCounters(received: 1000, sent: 500)
         let new = NetworkCounters(received: 5000, sent: 700)
@@ -57,21 +72,34 @@ import Testing
         #expect(!NetworkSampler.countsTowardTotal("awdl0"))
     }
 
-    @Test func parsesNettop() {
+    @Test func parsesNettopSnapshot() {
         let output = """
         ,bytes_in,bytes_out,
-        Safari.400,999,999,
-        ,bytes_in,bytes_out,
         Google Chrome H.1234,5000,800,
-        Google Chrome H.1240,1000,200,
         Slack.900,300,100,
-        launchd.1,0,0,
         garbage line
         """
-        let traffic = NetworkSampler.parseNettop(output)
-        #expect(traffic.map(\.name) == ["Google Chrome H", "Slack"])
-        #expect(traffic.first == AppTraffic(name: "Google Chrome H", download: 6000, upload: 1000))
-        #expect(NetworkSampler.parseNettop("").isEmpty)
+        let snapshot = NetworkSampler.parseSnapshot(output)
+        #expect(snapshot.count == 2)
+        #expect(snapshot["Google Chrome H.1234"] == NetworkCounters(received: 5000, sent: 800))
+        #expect(NetworkSampler.parseSnapshot("").isEmpty)
+    }
+
+    @Test func talkersFromSnapshots() {
+        let old = ["Chrome H.1": NetworkCounters(received: 1000, sent: 100),
+                   "Chrome H.2": NetworkCounters(received: 0, sent: 0),
+                   "Slack.3": NetworkCounters(received: 500, sent: 500),
+                   "Gone.4": NetworkCounters(received: 9, sent: 9)]
+        let new = ["Chrome H.1": NetworkCounters(received: 5000, sent: 500),
+                   "Chrome H.2": NetworkCounters(received: 2000, sent: 300),
+                   "Slack.3": NetworkCounters(received: 500, sent: 500),
+                   "New.5": NetworkCounters(received: 99_999, sent: 0)]
+        let talkers = NetworkSampler.talkers(from: old, to: new, seconds: 2, limit: 3)
+        // Helpers fold by name, idle apps drop out, and a process with no earlier reading is skipped.
+        #expect(talkers == [AppTraffic(name: "Chrome H", download: 3000, upload: 350)])
+        let reset = ["Chrome H.1": NetworkCounters(received: 10, sent: 10)]
+        #expect(NetworkSampler.talkers(from: old, to: reset, seconds: 2, limit: 3).isEmpty)
+        #expect(NetworkSampler.talkers(from: old, to: new, seconds: 0, limit: 3).isEmpty)
     }
 
     @Test func groupsHelpersUnderApp() {

@@ -11,19 +11,20 @@ enum Snapshots {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let model = AppModel()
         model.loadSample()
-        let history = model.cpuHistory.values.map { Int(($0 * 100).rounded()) }
-        let all = MenuBarGraph.State(cpu: history, ram: 69, pressure: .normal,
+        let cpu = Int((model.cpu.total * 100).rounded())
+        let all = MenuBarGraph.State(cpu: cpu, ram: 24, pressure: .normal,
                                      network: .init(top: "↓ 1.2 MB/s", bottom: "↑ 86.0 KB/s"),
-                                     disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB"), vpn: true)
+                                     disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB"))
         var colored = all
         colored.colored = true
         let states: [(String, MenuBarGraph.State)] = [
-            ("default", .init(cpu: history, ram: 69, pressure: .normal, network: nil, disk: nil, vpn: true)),
+            ("default", .init(cpu: cpu, ram: 24, pressure: .normal, network: nil, disk: nil)),
+            ("idle", .init(cpu: 3, ram: 18, pressure: .normal, network: nil, disk: nil)),
+            ("warning", .init(cpu: 46, ram: 68, pressure: .warning, network: nil, disk: nil)),
             ("all", all),
             ("colored", colored),
-            ("vpn-off", .init(cpu: history, ram: 69, pressure: .normal, network: nil, disk: nil, vpn: false)),
-            ("pressure", .init(cpu: history.map { min(100, $0 * 3) }, ram: 94, pressure: .critical,
-                               network: nil, disk: nil, vpn: false)),
+            ("pressure", .init(cpu: 82, ram: 94, pressure: .critical,
+                               network: nil, disk: nil)),
         ]
         for (suffix, name) in [("light", NSAppearance.Name.aqua), ("dark", .darkAqua)] {
             guard let appearance = NSAppearance(named: name) else { continue }

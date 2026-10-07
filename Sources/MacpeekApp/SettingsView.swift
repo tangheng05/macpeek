@@ -23,7 +23,6 @@ struct SettingsView: View {
             Section {
                 Toggle("Network speed", isOn: $model.showNetwork)
                 Toggle("Disk space", isOn: $model.showDisk)
-                Toggle("VPN shield", isOn: $model.showVPN)
                 Toggle("Colored graphs", isOn: $model.coloredMenuBar)
                 Picker("Update every", selection: $model.interval) {
                     Text("1 second").tag(1.0)
@@ -64,7 +63,6 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .frame(width: 380)
-        .fixedSize(horizontal: false, vertical: true)
         .task { await model.refreshNotificationStatus() }
     }
 

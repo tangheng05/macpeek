@@ -3,86 +3,148 @@ import SwiftUI
 
 struct PrivacySection: View {
     let model: AppModel
+    @AppStorage("showPrivacyDetails") private var expanded = false
 
     var body: some View {
-        let report = model.report
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 12) {
-                Image(systemName: shieldIcon(report))
-                    .font(.system(size: 30))
-                    .foregroundStyle(shieldColor(report))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(report?.verdict.title ?? "Checking…")
-                        .font(.headline)
-                    HStack(spacing: 4) {
-                        Text(report?.ip?.ip ?? (report == nil ? " " : "Offline"))
-                            .font(.subheadline.monospacedDigit())
-                            .foregroundStyle(.secondary)
-                        if let ip = report?.ip?.ip {
-                            Button { model.copy(ip) } label: { Image(systemName: "doc.on.doc") }
-                                .buttonStyle(.borderless)
-                                .help("Copy IP address")
-                        }
-                    }
+            status
+            disclosure
+            if expanded { details }
+        }
+    }
+
+    // MARK: Status
+
+    private var status: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 30, height: 30)
+                .background(tint.gradient, in: .rect(cornerRadius: 7, style: .continuous))
+            VStack(alignment: .leading, spacing: 1) {
+                Text(model.report?.verdict.title ?? "Checking…")
+                    .font(.headline)
+                Text(subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer(minLength: 8)
+            Button { Task { await model.runFullTest() } } label: {
+                Image(systemName: "arrow.clockwise")
+                    .symbolEffect(.rotate, isActive: model.checking)
+            }
+            .buttonStyle(.borderless)
+            .keyboardShortcut("r")
+            .disabled(model.checking)
+            .help("Run Full Test (⌘R)")
+        }
+        .padding(10)
+        .background(tint.opacity(0.13), in: .rect(cornerRadius: 12, style: .continuous))
+    }
+
+    private var icon: String {
+        switch model.report?.verdict {
+        case .protected: "checkmark.shield.fill"
+        case .leaking: "exclamationmark.shield.fill"
+        case .unprotected, nil: "shield.slash.fill"
+        }
+    }
+
+    private var tint: Color {
+        switch model.report?.verdict {
+        case .protected: .green
+        case .leaking: .orange
+        case .unprotected, nil: Color(nsColor: .systemGray)
+        }
+    }
+
+    private var subtitle: String {
+        guard let report = model.report else { return "Looking up your connection" }
+        switch report.verdict {
+        case .leaking:
+            return report.dns == .exposed ? "DNS requests go around the VPN" : "IPv6 traffic goes around the VPN"
+        case .protected, .unprotected:
+            let vpn = report.vpn.connected ? (report.vpn.name ?? "VPN on") : "VPN off"
+            return [vpn, place(report.ip)].compactMap { $0 }.joined(separator: ", ")
+        }
+    }
+
+    // MARK: Details
+
+    private var disclosure: some View {
+        Button {
+            withAnimation(.snappy(duration: 0.2)) { expanded.toggle() }
+        } label: {
+            HStack {
+                Text("Details")
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .rotationEffect(.degrees(expanded ? 90 : 0))
+                Spacer()
+                if !expanded, let ip = model.report?.ip?.ip {
+                    Text(ip)
+                        .monospacedDigit()
                 }
             }
-            InfoRow(icon: "network", label: "VPN Status", value: vpnText)
-            InfoRow(icon: "globe", label: "IP Location", value: location(report?.ip))
-            InfoRow(icon: "building.2", label: "ISP", value: report?.ip?.isp ?? "—")
-            InfoRow(icon: "server.rack", label: "DNS Route", value: text(report?.dns), valueColor: color(report?.dns))
-            InfoRow(icon: "6.circle", label: "IPv6 Leak", value: text(report?.ipv6), valueColor: color(report?.ipv6))
-            TimelineView(.periodic(from: .now, by: 30)) { context in
-                Text(model.checking ? "Checking…" : report.map { "Last checked: \(Format.ago($0.checkedAt, now: context.date))" } ?? "")
-                    .font(.caption)
+            .foregroundStyle(.secondary)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 2)
+    }
+
+    private var details: some View {
+        let report = model.report
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Public IP")
+                Spacer(minLength: 12)
+                Text(report?.ip?.ip ?? (report == nil ? "—" : "Lookup failed"))
+                    .monospacedDigit()
                     .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
+                    .textSelection(.enabled)
+                if let ip = report?.ip?.ip {
+                    Button { model.copy(ip) } label: { Image(systemName: "doc.on.doc") }
+                        .buttonStyle(.borderless)
+                        .help("Copy IP address")
+                }
+            }
+            ValueRow(label: "Location", value: fullPlace(report?.ip) ?? "—")
+            ValueRow(label: "Provider", value: report?.ip?.isp ?? "—")
+            if let dns = report?.dns, dns != .unknown {
+                ValueRow(label: "DNS", value: dns == .protected ? "Through the VPN" : "Around the VPN",
+                         valueColor: dns == .exposed ? .orange : .secondary)
+            }
+            if let ipv6 = report?.ipv6, ipv6 != .unknown {
+                ValueRow(label: "IPv6", value: ipv6 == .protected ? "Through the VPN" : "Around the VPN",
+                         valueColor: ipv6 == .exposed ? .orange : .secondary)
             }
             HStack {
-                Button("Run Full Test") { Task { await model.runFullTest() } }
-                    .keyboardShortcut("r")
-                    .disabled(model.checking)
+                TimelineView(.periodic(from: .now, by: 30)) { context in
+                    Text(report.map { "Checked \(Format.ago($0.checkedAt, now: context.date))" } ?? "")
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                Spacer()
                 Button("Copy Report") { model.copyReport() }
+                    .buttonStyle(.borderless)
                     .keyboardShortcut("c")
                     .disabled(report == nil)
             }
         }
+        .padding(.horizontal, 2)
     }
 
-    private var vpnText: String {
-        guard model.vpn.connected else { return "Off" }
-        return model.vpn.name ?? "Connected"
-    }
-
-    private func location(_ ip: IPInfo?) -> String {
-        guard let code = ip?.countryCode else { return "—" }
+    private func place(_ ip: IPInfo?) -> String? {
+        guard let code = ip?.countryCode else { return nil }
         return [Format.flag(code), Format.countryName(code)].compactMap { $0 }.joined(separator: " ")
     }
 
-    private func text(_ result: CheckResult?) -> String {
-        switch result {
-        case .protected: "Protected"
-        case .exposed: "Exposed"
-        case .unknown, nil: "—"
-        }
-    }
-
-    private func color(_ result: CheckResult?) -> Color {
-        result == .exposed ? .orange : .primary
-    }
-
-    private func shieldIcon(_ report: PrivacyReport?) -> String {
-        switch report?.verdict {
-        case .protected: "checkmark.shield.fill"
-        case .leaking: "exclamationmark.shield.fill"
-        case .unprotected, nil: "shield.slash"
-        }
-    }
-
-    private func shieldColor(_ report: PrivacyReport?) -> Color {
-        switch report?.verdict {
-        case .protected: .purple
-        case .leaking: .orange
-        case .unprotected, nil: .secondary
-        }
+    private func fullPlace(_ ip: IPInfo?) -> String? {
+        guard let country = place(ip) else { return nil }
+        guard let city = ip?.city, !city.isEmpty else { return country }
+        return "\(city), \(country)"
     }
 }
