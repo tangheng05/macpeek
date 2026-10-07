@@ -88,7 +88,7 @@ enum MenuBarGraph {
         }
         if let vpn = state.vpn {
             let color: NSColor = vpn ? (state.colored ? .systemGreen : palette.ink) : palette.ink.withAlphaComponent(dimmed)
-            drawSymbol(vpn ? "lock.shield.fill" : "shield.slash", color: color,
+            drawSymbol(vpn ? "lock.shield" : "shield.slash", color: color,
                        in: NSRect(x: x + gap, y: boxY, width: 15, height: boxHeight))
         }
     }
