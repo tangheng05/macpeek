@@ -70,7 +70,13 @@ struct SettingsView: View {
 
     private var updateStatus: String {
         switch model.updater.status {
-        case .idle: model.updater.available.map { "Version \($0.version) is available." } ?? ""
+        case .idle:
+            model.updater.available.map {
+                model.updater.viaHomebrew
+                    ? "Version \($0.version) is available. Run \(Updater.brewCommand) in Terminal."
+                    : "Version \($0.version) is available."
+            } ?? ""
+        case .copiedCommand: "Copied. Paste it in Terminal to update."
         case .checking: "Checking…"
         case .upToDate: "You're up to date."
         case .installing: "Installing…"

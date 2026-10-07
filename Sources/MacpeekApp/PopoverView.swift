@@ -30,8 +30,15 @@ struct PopoverView: View {
     private var footer: some View {
         VStack(alignment: .leading, spacing: 6) {
             if let release = model.updater.available {
-                Button("Update to \(release.version)") { Task { await model.updater.install() } }
-                    .disabled(model.updater.status == .installing)
+                if model.updater.viaHomebrew {
+                    Button(model.updater.status == .copiedCommand ? "Copied" : "Copy Update Command") {
+                        Task { await model.updater.install() }
+                    }
+                    .help("Copies \(Updater.brewCommand) to paste in Terminal")
+                } else {
+                    Button("Update to \(release.version)") { Task { await model.updater.install() } }
+                        .disabled(model.updater.status == .installing)
+                }
             }
             HStack {
                 Button("Settings…") { model.openSettings?() }

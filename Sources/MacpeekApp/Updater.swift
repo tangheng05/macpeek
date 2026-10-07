@@ -7,7 +7,7 @@ import Observation
 @Observable
 final class Updater {
     enum Status: Equatable {
-        case idle, checking, upToDate, installing
+        case idle, checking, upToDate, installing, copiedCommand
         case checkFailed(String)
         case failed(String)
     }
@@ -24,6 +24,7 @@ final class Updater {
     let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
     let viaHomebrew = ["/opt/homebrew/Caskroom/macpeek", "/usr/local/Caskroom/macpeek"]
         .contains { FileManager.default.fileExists(atPath: $0) }
+    static let brewCommand = "brew upgrade --cask macpeek"
 
     @ObservationIgnored private var timer: Timer?
 
@@ -78,6 +79,12 @@ final class Updater {
 
     func install() async {
         guard let release = available else { return }
+        // Replacing a cask's app behind Homebrew's back leaves its record out of date.
+        if viaHomebrew {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(Self.brewCommand, forType: .string)
+            return showBriefly(.copiedCommand)
+        }
         guard let checksumURL = release.checksumURL else {
             status = .failed("This release can't be verified, so download it from GitHub instead.")
             return
