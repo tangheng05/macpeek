@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/icon.png" width="128" alt="Macpeek app icon">
+</p>
+
 <h1 align="center">macpeek</h1>
 
 <p align="center">
@@ -12,6 +16,22 @@
 </p>
 
 > Early work in progress. There is no release yet.
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/menubar-dark.png">
+    <img src="assets/menubar-light.png" width="440" alt="Macpeek in the menu bar: CPU graph, RAM bar, network speed, disk space and VPN shield">
+  </picture>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/popover-dark.png">
+    <img src="assets/popover-light.png" width="320" alt="Macpeek popover with privacy, system, network and power sections">
+  </picture>
+</p>
+
+<sub>Screenshots are rendered by CI with sample data.</sub>
 
 ## What it shows
 
@@ -53,6 +73,8 @@ You need macOS 26 and Xcode 26.
 ```sh
 make install   # builds, copies to /Applications and opens it
 make test
+make snapshots   # renders the UI to build/snapshots
+make energy      # runs the app for a minute and checks CPU and memory
 ```
 
 `scripts/publish.sh notes.md` builds a release, uploads it to GitHub and updates the cask in [homebrew-tap](https://github.com/tangheng05/homebrew-tap).
@@ -60,7 +82,7 @@ make test
 ## Roadmap
 
 - [x] Project setup, CI on a macOS 26 runner
-- [ ] Phase 1: CPU and RAM samplers, menu bar graph
+- [x] Phase 1: menu bar graph, UI snapshots, energy check and app icon in CI
 - [ ] Phase 2: popover with top apps
 - [ ] Phase 3: VPN detection, public IP, leak checks, alerts
 - [ ] Phase 4: network speed, disk, battery, thermal
