@@ -52,7 +52,7 @@ Macpeek needs macOS 26 or later. It isn't notarized yet; both methods clear the 
 **Click it for more:**
 
 - **Privacy.** Whether you're protected, your public IP (one click to copy), VPN status, location, ISP, a DNS route check and an IPv6 leak check. Run Full Test (⌘R) and Copy Report (⌘C).
-- **System.** CPU and memory with the top five apps by each. Helper processes are folded into their app, so Chrome counts as one.
+- **System.** CPU and memory with the top five apps by CPU, memory or energy. Helper processes are folded into their app, so Chrome counts as one.
 - **Network.** Live download and upload speed, and which apps are using it.
 - **Storage and power.** Free disk space, battery level, power draw in watts, health, cycle count, temperature and thermal state.
 
