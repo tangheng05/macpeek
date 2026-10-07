@@ -94,7 +94,8 @@ final class StatusItemController {
             disk: model.showDisk
                 ? model.disk.map { .init(top: "F: " + Format.bytes($0.free), bottom: "U: " + Format.bytes($0.used)) }
                 : nil,
-            vpn: model.showVPN ? model.vpn.connected : nil
+            vpn: model.showVPN ? model.vpn.connected : nil,
+            colored: model.coloredMenuBar
         )
         guard state != rendered, let button = item.button else { return }
         rendered = state

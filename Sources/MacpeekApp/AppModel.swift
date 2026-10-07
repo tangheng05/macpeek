@@ -33,6 +33,7 @@ final class AppModel {
     var showNetwork: Bool { didSet { save(showNetwork, "showNetwork") } }
     var showDisk: Bool { didSet { save(showDisk, "showDisk") } }
     var showVPN: Bool { didSet { save(showVPN, "showVPN") } }
+    var coloredMenuBar: Bool { didSet { save(coloredMenuBar, "coloredMenuBar") } }
     var alertVPN: Bool { didSet { save(alertVPN, "alertVPN") } }
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
     var alertMemory: Bool { didSet { save(alertMemory, "alertMemory") } }
@@ -69,13 +70,14 @@ final class AppModel {
     init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
-            "interval": 2.0, "showNetwork": false, "showDisk": false, "showVPN": true,
+            "interval": 2.0, "showNetwork": false, "showDisk": false, "showVPN": true, "coloredMenuBar": false,
             "alertVPN": true, "alertIPChange": true, "alertMemory": true, "alertThermal": false,
         ])
         interval = defaults.double(forKey: "interval")
         showNetwork = defaults.bool(forKey: "showNetwork")
         showDisk = defaults.bool(forKey: "showDisk")
         showVPN = defaults.bool(forKey: "showVPN")
+        coloredMenuBar = defaults.bool(forKey: "coloredMenuBar")
         alertVPN = defaults.bool(forKey: "alertVPN")
         alertIPChange = defaults.bool(forKey: "alertIPChange")
         alertMemory = defaults.bool(forKey: "alertMemory")

@@ -12,11 +12,16 @@ enum Snapshots {
         let model = AppModel()
         model.loadSample()
         let history = model.cpuHistory.values.map { Int(($0 * 100).rounded()) }
+        let all = MenuBarGraph.State(cpu: history, ram: 69, pressure: .normal,
+                                     network: .init(top: "↓ 1.2 MB/s", bottom: "↑ 86.0 KB/s"),
+                                     disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB"), vpn: true)
+        var colored = all
+        colored.colored = true
         let states: [(String, MenuBarGraph.State)] = [
             ("default", .init(cpu: history, ram: 69, pressure: .normal, network: nil, disk: nil, vpn: true)),
-            ("all", .init(cpu: history, ram: 69, pressure: .normal,
-                          network: .init(top: "↓ 1.2 MB/s", bottom: "↑ 86.0 KB/s"),
-                          disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB"), vpn: true)),
+            ("all", all),
+            ("colored", colored),
+            ("vpn-off", .init(cpu: history, ram: 69, pressure: .normal, network: nil, disk: nil, vpn: false)),
             ("pressure", .init(cpu: history.map { min(100, $0 * 3) }, ram: 94, pressure: .critical,
                                network: nil, disk: nil, vpn: false)),
         ]
@@ -54,8 +59,19 @@ enum Snapshots {
             let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             (dark ? NSColor(white: 0.16, alpha: 1) : NSColor(white: 0.92, alpha: 1)).setFill()
             NSRect(origin: .zero, size: size).fill()
-            image.draw(in: NSRect(x: padding, y: (size.height - image.size.height) / 2,
-                                  width: image.size.width, height: image.size.height))
+            let target = NSRect(x: padding, y: (size.height - image.size.height) / 2,
+                                width: image.size.width, height: image.size.height)
+            if image.isTemplate {
+                // What the menu bar does: keep the alpha, paint it in the label colour.
+                let context = NSGraphicsContext.current?.cgContext
+                context?.beginTransparencyLayer(in: target, auxiliaryInfo: nil)
+                image.draw(in: target)
+                NSColor.labelColor.set()
+                target.fill(using: .sourceAtop)
+                context?.endTransparencyLayer()
+            } else {
+                image.draw(in: target)
+            }
         }
         NSGraphicsContext.restoreGraphicsState()
         return rep

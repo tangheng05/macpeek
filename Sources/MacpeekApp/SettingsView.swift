@@ -24,6 +24,7 @@ struct SettingsView: View {
                 Toggle("Network speed", isOn: $model.showNetwork)
                 Toggle("Disk space", isOn: $model.showDisk)
                 Toggle("VPN shield", isOn: $model.showVPN)
+                Toggle("Colored graphs", isOn: $model.coloredMenuBar)
                 Picker("Update every", selection: $model.interval) {
                     Text("1 second").tag(1.0)
                     Text("2 seconds").tag(2.0)
@@ -33,7 +34,7 @@ struct SettingsView: View {
             } header: {
                 Text("Menu Bar")
             } footer: {
-                Text("Slower updates use less energy.")
+                Text("Without color, Macpeek matches the system icons. Slower updates use less energy.")
                     .foregroundStyle(.secondary)
             }
             Section {
