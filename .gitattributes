@@ -1,0 +1,4 @@
+# Written on Windows, built on macOS: keep LF so shell scripts and the Makefile work.
+* text=auto eol=lf
+*.icns binary
+*.png binary
