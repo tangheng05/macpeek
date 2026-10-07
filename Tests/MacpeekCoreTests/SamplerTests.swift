@@ -143,6 +143,20 @@ import Testing
         #expect(info.temperature == 30.5)
     }
 
+    /// Apple silicon on macOS 26+: MaxCapacity is a percentage and the real capacities sit in BatteryData.
+    @Test func batteryHealthFromNominalCapacity() throws {
+        let values: [String: Any] = ["Current Capacity": 80, "Max Capacity": 100]
+        let registry = ["MaxCapacity": 100, "NominalChargeCapacity": 6258, "DesignCapacity": 6249]
+        #expect(try #require(BatteryInfo.parse(values, registry: registry)).health == 100)
+        let worn = ["MaxCapacity": 100, "NominalChargeCapacity": 5300, "DesignCapacity": 6249]
+        #expect(try #require(BatteryInfo.parse(values, registry: worn)).health == 85)
+    }
+
+    @Test func liveBatteryHasHealth() {
+        guard let info = BatteryInfo.read() else { return }
+        #expect(info.health != nil)
+    }
+
     @Test func batteryStillEstimating() throws {
         let values: [String: Any] = ["Current Capacity": 50, "Max Capacity": 100, "Is Charging": true,
                                      "Power Source State": "AC Power", "Time to Full Charge": -1]

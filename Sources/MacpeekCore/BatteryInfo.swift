@@ -20,7 +20,8 @@ public enum BatteryInfo {
               let max = values["Max Capacity"] as? Int, max > 0 else { return nil }
         let charging = values["Is Charging"] as? Bool ?? false
         let minutes = (charging ? values["Time to Full Charge"] : values["Time to Empty"]) as? Int
-        let rawMax = registry["AppleRawMaxCapacity"] ?? registry["MaxCapacity"]
+        // Nominal capacity is what System Settings uses for Maximum Capacity.
+        let rawMax = registry["NominalChargeCapacity"] ?? registry["AppleRawMaxCapacity"] ?? registry["MaxCapacity"]
         return PowerInfo(percent: current * 100 / max,
                          charging: charging,
                          pluggedIn: values["Power Source State"] as? String == "AC Power",
@@ -48,12 +49,18 @@ public enum BatteryInfo {
         guard service != 0 else { return [:] }
         defer { IOObjectRelease(service) }
         var result: [String: Int] = [:]
-        let keys = ["CycleCount", "AppleRawMaxCapacity", "MaxCapacity", "DesignCapacity", "Voltage", "Amperage", "Temperature"]
+        let keys = ["CycleCount", "AppleRawMaxCapacity", "NominalChargeCapacity", "MaxCapacity", "DesignCapacity", "Voltage", "Amperage", "Temperature"]
         for key in keys {
             let value = IORegistryEntryCreateCFProperty(service, key as CFString, kCFAllocatorDefault, 0)?
                 .takeRetainedValue()
             // NSNumber, so a negative amperage stored as a huge unsigned value reads back signed.
             if let number = value as? NSNumber { result[key] = number.intValue }
+        }
+        // Newer macOS only has the capacities inside BatteryData.
+        let data = IORegistryEntryCreateCFProperty(service, "BatteryData" as CFString, kCFAllocatorDefault, 0)?
+            .takeRetainedValue() as? [String: Any]
+        for key in ["NominalChargeCapacity", "DesignCapacity"] where result[key] == nil {
+            if let number = data?[key] as? NSNumber { result[key] = number.intValue }
         }
         return result
     }
