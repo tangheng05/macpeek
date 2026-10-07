@@ -1,19 +1,25 @@
 APP := build/Macpeek.app
+ICON := build/AppIcon.icns
 BUILD := swift build -c release --arch arm64 --arch x86_64
 BIN = $(shell $(BUILD) --show-bin-path)
 
-.PHONY: app install release test clean
+.PHONY: app install release test snapshots energy clean
 
-app:
+app: $(ICON)
 	$(BUILD)
 	rm -rf $(APP)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Helpers $(APP)/Contents/Resources
 	cp $(BIN)/MacpeekApp $(APP)/Contents/MacOS/
 	cp $(BIN)/macpeek $(APP)/Contents/Helpers/
 	cp Resources/Info.plist $(APP)/Contents/
-	if [ -f Resources/AppIcon.icns ]; then cp Resources/AppIcon.icns $(APP)/Contents/Resources/; fi
+	cp $(ICON) $(APP)/Contents/Resources/
 	codesign --force --sign - $(APP)/Contents/Helpers/macpeek
 	codesign --force --sign - $(APP)
+
+$(ICON): scripts/make-icon.swift
+	rm -rf build/AppIcon.iconset
+	swift scripts/make-icon.swift build/AppIcon.iconset
+	iconutil -c icns build/AppIcon.iconset -o $(ICON)
 
 install: app
 	-pkill -x MacpeekApp
@@ -27,6 +33,13 @@ release: app
 
 test:
 	swift test
+
+snapshots: $(ICON)
+	swift run MacpeekApp --snapshots build/snapshots
+	cp build/AppIcon.iconset/icon_512x512.png build/snapshots/icon.png
+
+energy: app
+	scripts/energy-check.sh $(APP)
 
 clean:
 	rm -rf .build build

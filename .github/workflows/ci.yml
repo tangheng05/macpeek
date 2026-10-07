@@ -16,11 +16,20 @@ jobs:
         run: swift build
       - name: Test
         run: swift test
+      - name: Snapshots
+        run: make snapshots
       - name: App bundle
         run: |
           make app
           cd build && ditto -c -k --keepParent Macpeek.app Macpeek.zip
-      - uses: actions/upload-artifact@v5
+      - name: Energy check
+        run: scripts/energy-check.sh build/Macpeek.app
+      - uses: actions/upload-artifact@v7
         with:
           name: Macpeek
           path: build/Macpeek.zip
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: snapshots
+          path: build/snapshots

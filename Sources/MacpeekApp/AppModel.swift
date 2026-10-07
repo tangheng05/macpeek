@@ -218,6 +218,36 @@ final class AppModel {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    #if DEBUG
+    /// Fixed data for snapshot renders.
+    func loadSample() {
+        cpu = CPUUsage(user: 0.18, system: 0.07)
+        for index in 0..<MenuBarGraph.historyLength {
+            cpuHistory.append(0.12 + 0.1 * sin(Double(index) / 3) + (index > 20 ? 0.2 : 0))
+        }
+        memory = MemoryUsage(used: 11_800_000_000, total: 17_179_869_184, pressure: .normal)
+        network = NetworkRate(download: 1_240_000, upload: 86_000)
+        disk = DiskUsage(free: 366_400_000_000, total: 494_380_000_000)
+        power = PowerInfo(percent: 82, charging: false, pluggedIn: false, minutesLeft: 312, cycleCount: 214,
+                          health: 91, watts: 7.4, temperature: 31.2)
+        apps = [
+            ProcessUsage(id: "safari", name: "Safari", pid: 1, bundlePath: "/Applications/Safari.app", cpu: 14.2, memory: 2_100_000_000),
+            ProcessUsage(id: "mail", name: "Mail", pid: 2, bundlePath: "/System/Applications/Mail.app", cpu: 3.1, memory: 410_000_000),
+            ProcessUsage(id: "music", name: "Music", pid: 3, bundlePath: "/System/Applications/Music.app", cpu: 6.8, memory: 380_000_000),
+            ProcessUsage(id: "finder", name: "Finder", pid: 4, bundlePath: "/System/Library/CoreServices/Finder.app", cpu: 0.4, memory: 160_000_000),
+            ProcessUsage(id: "notes", name: "Notes", pid: 5, bundlePath: "/System/Applications/Notes.app", cpu: 1.2, memory: 240_000_000),
+        ]
+        talkers = [
+            AppTraffic(name: "Safari", download: 1_100_000, upload: 40_000),
+            AppTraffic(name: "Music", download: 120_000, upload: 6_000),
+        ]
+        vpn = VPNState(connected: true, interface: "utun4", fullTunnel: true, name: "WireGuard")
+        report = PrivacyReport(vpn: vpn,
+                               ip: IPInfo(ip: "219.100.37.236", city: "Tokyo", region: "Tokyo", countryCode: "JP", isp: "SoftEther"),
+                               dns: .protected, ipv6: .protected, checkedAt: .now)
+    }
+    #endif
+
     // MARK: Events
 
     private func watchMemoryPressure() {
