@@ -11,8 +11,21 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         center?.delegate = self
     }
 
-    func requestPermission() {
-        center?.requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    /// Asked from a button, so the prompt never appears out of nowhere.
+    func requestPermission() async -> Bool {
+        guard let center else { return false }
+        return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+    }
+
+    func isAllowed() async -> Bool {
+        guard let center else { return false }
+        let status = await center.notificationSettings().authorizationStatus
+        return status == .authorized || status == .provisional
+    }
+
+    func wasDenied() async -> Bool {
+        guard let center else { return false }
+        return await center.notificationSettings().authorizationStatus == .denied
     }
 
     func post(title: String, body: String) {

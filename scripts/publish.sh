@@ -1,16 +1,8 @@
 #!/bin/sh
-# Builds the app, publishes a GitHub release and updates the Homebrew cask.
-# Usage: scripts/publish.sh <release-notes-file>
+# Tags the version in Info.plist and pushes it; the Release workflow does the rest.
+# Usage: scripts/publish.sh
 set -e
-notes=${1:?usage: scripts/publish.sh <release-notes-file>}
-version=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
-
-make release
-sha=$(cut -d' ' -f1 build/Macpeek.zip.sha256)
-gh release create "v$version" build/Macpeek.zip build/Macpeek.zip.sha256 --title "v$version" --notes-file "$notes"
-
-sed -e "s/@VERSION@/$version/" -e "s/@SHA256@/$sha/" packaging/macpeek.rb > build/macpeek.rb
-current=$(gh api repos/tangheng05/homebrew-tap/contents/Casks/macpeek.rb --jq .sha 2>/dev/null || true)
-gh api -X PUT repos/tangheng05/homebrew-tap/contents/Casks/macpeek.rb \
-    -f message="macpeek $version" -f content="$(base64 -i build/macpeek.rb)" ${current:+-f sha="$current"} >/dev/null
-echo "Published v$version"
+version=$(sed -n '/CFBundleShortVersionString/{n;s/.*<string>\(.*\)<\/string>.*/\1/p;}' Resources/Info.plist)
+git tag "v$version"
+git push origin "v$version"
+echo "Pushed v$version. Follow it at https://github.com/tangheng05/macpeek/actions"

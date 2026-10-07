@@ -44,6 +44,8 @@
 - **Network.** Live download and upload speed, and which apps are using it.
 - **Storage and power.** Free disk space, battery level, power draw in watts, health, cycle count, temperature and thermal state.
 
+**Open it from anywhere** with ⌃⌥⌘M (change it in Settings), and have it start at login.
+
 **Notifications** (each one can be turned off): the VPN disconnects, your public IP changes while on VPN, memory runs out, or your Mac starts throttling from heat.
 
 ## Easy on energy
@@ -77,7 +79,11 @@ make snapshots   # renders the UI to build/snapshots
 make energy      # runs the app for a minute and checks CPU and memory
 ```
 
-`scripts/publish.sh notes.md` builds a release, uploads it to GitHub and updates the cask in [homebrew-tap](https://github.com/tangheng05/homebrew-tap).
+## Releasing
+
+Bump `CFBundleShortVersionString` in `Resources/Info.plist`, commit, then run `scripts/publish.sh`. It pushes a `v<version>` tag, and the Release workflow tests, builds and publishes the GitHub release and updates the cask in [homebrew-tap](https://github.com/tangheng05/homebrew-tap). A tag with a suffix like `v0.2.0-rc1` makes a prerelease and leaves the cask alone.
+
+The cask update needs a `TAP_TOKEN` repository secret: a fine-grained token with **Contents: read and write** on `homebrew-tap`.
 
 ## Roadmap
 
@@ -86,8 +92,9 @@ make energy      # runs the app for a minute and checks CPU and memory
 - [ ] Phase 2: popover with top apps
 - [ ] Phase 3: VPN detection, public IP, leak checks, alerts
 - [ ] Phase 4: network speed, disk, battery, thermal
-- [ ] Phase 5: settings, updater, icon, first release on Homebrew
-- [ ] Later: per-app energy use, charge limit reminders, global hotkey, launch at login, widgets
+- [x] Release workflow, launch at login, welcome window, global shortcut
+- [ ] Phase 5: first release on Homebrew
+- [ ] Later: real DNS leak test, Wi-Fi details, charge limit reminders, widgets
 
 ## License
 

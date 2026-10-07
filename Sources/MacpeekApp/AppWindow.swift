@@ -8,10 +8,13 @@ final class AppWindow: NSObject, NSWindowDelegate {
     private static var openCount = 0
     private var window: NSWindow?
     private let title: String
+    private let plainTitlebar: Bool
     private let makeContent: () -> AnyView
+    var onClose: (() -> Void)?
 
-    init(title: String, content: @escaping () -> some View) {
+    init(title: String, plainTitlebar: Bool = false, content: @escaping () -> some View) {
         self.title = title
+        self.plainTitlebar = plainTitlebar
         self.makeContent = { AnyView(content()) }
     }
 
@@ -22,6 +25,11 @@ final class AppWindow: NSObject, NSWindowDelegate {
             let window = NSWindow(contentViewController: NSHostingController(rootView: makeContent()))
             window.title = title
             window.styleMask = [.titled, .closable]
+            if plainTitlebar {
+                window.styleMask.insert(.fullSizeContentView)
+                window.titlebarAppearsTransparent = true
+                window.titleVisibility = .hidden
+            }
             window.isReleasedWhenClosed = false
             window.delegate = self
             window.center()
@@ -34,9 +42,14 @@ final class AppWindow: NSObject, NSWindowDelegate {
         window?.orderFrontRegardless()
     }
 
+    func close() {
+        window?.close()
+    }
+
     func windowWillClose(_ notification: Notification) {
         Self.openCount = max(0, Self.openCount - 1)
         if Self.openCount == 0 { NSApp.setActivationPolicy(.accessory) }
+        onClose?()
         // A closed window's views would keep updating with the model, so build it fresh next time.
         DispatchQueue.main.async { [weak self] in
             guard self?.isOpen == false else { return }

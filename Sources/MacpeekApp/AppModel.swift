@@ -1,6 +1,7 @@
 import AppKit
 import MacpeekCore
 import Observation
+import ServiceManagement
 
 @MainActor
 @Observable
@@ -36,6 +37,17 @@ final class AppModel {
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
     var alertMemory: Bool { didSet { save(alertMemory, "alertMemory") } }
     var alertThermal: Bool { didSet { save(alertThermal, "alertThermal") } }
+    /// Nil means the shortcut is turned off.
+    var shortcut: KeyCombo? {
+        didSet {
+            let stored = shortcut.flatMap { try? JSONEncoder().encode($0) }.map { String(decoding: $0, as: UTF8.self) }
+            save(stored ?? "off", "keyCombo")
+        }
+    }
+    var shortcutTaken = false
+    var recordingShortcut = false
+    private(set) var openAtLogin = SMAppService.mainApp.status == .enabled
+    private(set) var notificationsAllowed = false
 
     let updater = Updater()
     @ObservationIgnored let notifier = Notifier()
@@ -68,6 +80,8 @@ final class AppModel {
         alertIPChange = defaults.bool(forKey: "alertIPChange")
         alertMemory = defaults.bool(forKey: "alertMemory")
         alertThermal = defaults.bool(forKey: "alertThermal")
+        let combo = defaults.string(forKey: "keyCombo")
+        shortcut = combo == "off" ? nil : combo.flatMap { try? JSONDecoder().decode(KeyCombo.self, from: Data($0.utf8)) } ?? .default
     }
 
     private func save(_ value: Any, _ key: String) {
@@ -75,7 +89,7 @@ final class AppModel {
     }
 
     func start() {
-        notifier.requestPermission()
+        Task { await refreshNotificationStatus() }
         disk = DiskInfo.read()
         power = BatteryInfo.read()
         vpn = VPNDetector.evaluate(VPNDetector.read())
@@ -207,6 +221,29 @@ final class AppModel {
         timer.tolerance = 300
         RunLoop.main.add(timer, forMode: .common)
         recheckTimer = timer
+    }
+
+    // MARK: Preferences
+
+    /// Only works for the copy in Applications; a build run from Terminal can't register.
+    func setOpenAtLogin(_ on: Bool) {
+        do {
+            if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() }
+        } catch {}
+        openAtLogin = SMAppService.mainApp.status == .enabled
+    }
+
+    func refreshNotificationStatus() async {
+        notificationsAllowed = await notifier.isAllowed()
+    }
+
+    /// Asks once; after a "Don't Allow" only System Settings can change it, so open that instead.
+    func allowNotifications() async {
+        if await notifier.wasDenied() {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!)
+            return
+        }
+        notificationsAllowed = await notifier.requestPermission()
     }
 
     func copyReport() {

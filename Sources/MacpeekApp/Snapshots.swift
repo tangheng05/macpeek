@@ -31,6 +31,9 @@ enum Snapshots {
             let settings = SettingsView(model: model)
                 .background(Color(nsColor: .windowBackgroundColor))
             write(view(settings, appearance: appearance), to: directory.appending(path: "settings-\(suffix).png"))
+            let welcome = WelcomeView(model: model) {}
+                .background(Color(nsColor: .windowBackgroundColor))
+            write(view(welcome, appearance: appearance), to: directory.appending(path: "welcome-\(suffix).png"))
         }
     }
 

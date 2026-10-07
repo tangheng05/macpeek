@@ -12,6 +12,8 @@ final class StatusItemController {
     private var outsideClickMonitor: Any?
     private var lastClosed = Date.distantPast
     private var settingsWindow: AppWindow?
+    private var welcomeWindow: AppWindow?
+    private let hotKey = HotKey()
 
     init(model: AppModel) {
         self.model = model
@@ -32,6 +34,11 @@ final class StatusItemController {
                 self?.model.popoverOpen = false
             }
         }
+        HotKey.action = { [weak self] in
+            guard self?.model.recordingShortcut == false else { return }
+            NSApp.activate()
+            self?.toggle()
+        }
         model.openSettings = { [weak self] in
             guard let self else { return }
             if settingsWindow == nil {
@@ -41,6 +48,22 @@ final class StatusItemController {
             popover.performClose(nil)
         }
         observe()
+        if !UserDefaults.standard.bool(forKey: "didShowWelcome") {
+            DispatchQueue.main.async { self.showWelcome() }
+        }
+    }
+
+    private func showWelcome() {
+        let window = AppWindow(title: "Welcome to Macpeek", plainTitlebar: true) { [unowned self] in
+            WelcomeView(model: model) { [weak self] in
+                self?.welcomeWindow?.close()
+                // Show the real thing right where it lives.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { self?.toggle() }
+            }
+        }
+        window.onClose = { UserDefaults.standard.set(true, forKey: "didShowWelcome") }
+        welcomeWindow = window
+        window.show()
     }
 
     private func observe() {
@@ -52,6 +75,9 @@ final class StatusItemController {
     }
 
     private func update() {
+        let taken = !hotKey.register(model.shortcut)
+        // Only write on change; every write re-triggers this observation.
+        if model.shortcutTaken != taken { model.shortcutTaken = taken }
         render()
         if popover.isShown { DispatchQueue.main.async { self.fitPopover() } }
     }

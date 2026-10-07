@@ -46,3 +46,21 @@ import Testing
         #expect(!Thermal.level(.fair).isThrottling)
     }
 }
+
+@Suite struct KeyComboTests {
+    @Test func defaultShortcut() {
+        #expect(KeyCombo.default.display == "⌃⌥⌘M")
+        #expect(KeyCombo.default.carbonModifiers == 0x1900)
+        #expect(KeyCombo.default.isValid)
+    }
+
+    @Test func needsAModifier() {
+        #expect(!KeyCombo(keyCode: 46, key: "m", command: false, option: false, control: false, shift: true).isValid)
+        #expect(!KeyCombo(keyCode: 0, key: "", command: true, option: false, control: false, shift: false).isValid)
+    }
+
+    @Test func survivesStorage() throws {
+        let data = try JSONEncoder().encode(KeyCombo.default)
+        #expect(try JSONDecoder().decode(KeyCombo.self, from: data) == .default)
+    }
+}
