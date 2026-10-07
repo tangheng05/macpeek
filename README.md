@@ -105,7 +105,7 @@ The cask update needs a `TAP_TOKEN` repository secret: a fine-grained token with
 - [x] Phase 3: VPN detection, public IP, leak checks, alerts
 - [x] Phase 4: network speed, disk, battery, thermal
 - [x] Release workflow, launch at login, welcome window, global shortcut
-- [ ] Phase 5: first release on Homebrew
+- [x] Phase 5: first release on Homebrew
 - [ ] Later: real DNS leak test, Wi-Fi details, charge limit reminders, widgets
 
 ## License
