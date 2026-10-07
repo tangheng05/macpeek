@@ -35,7 +35,7 @@
 
 ## What it shows
 
-**In the menu bar:** a CPU history graph and a RAM bar coloured by memory pressure. You can also add network speed, free and used disk space, and a VPN shield.
+**In the menu bar:** a CPU history graph and a RAM bar, drawn in the same monochrome style as the system icons (or in colour, if you prefer). You can also add network speed, free and used disk space, and a VPN shield.
 
 **Click it for more:**
 
