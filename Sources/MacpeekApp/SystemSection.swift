@@ -16,8 +16,7 @@ struct SystemSection: View {
             InfoRow(icon: "memorychip", label: "Memory", value: memoryText,
                     valueColor: model.memory?.pressure == .critical ? .red : .primary)
             if let memory = model.memory {
-                ProgressView(value: memory.fraction)
-                    .tint(pressureColor(memory.pressure))
+                Meter(value: memory.fraction, color: pressureColor(memory.pressure))
             }
             Picker("Sort", selection: $byMemory) {
                 Text("Top CPU").tag(false)

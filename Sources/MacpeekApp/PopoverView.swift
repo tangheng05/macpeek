@@ -64,6 +64,23 @@ struct InfoRow: View {
     }
 }
 
+/// A slim coloured bar; ProgressView ignores tint on macOS.
+struct Meter: View {
+    let value: Double
+    var color: Color = .accentColor
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.quaternary)
+                Capsule().fill(color.gradient)
+                    .frame(width: proxy.size.width * min(1, max(0, value)))
+            }
+        }
+        .frame(height: 6)
+    }
+}
+
 /// Filled area of 0...1 values, newest on the right.
 struct Sparkline: Shape {
     let values: [Double]
