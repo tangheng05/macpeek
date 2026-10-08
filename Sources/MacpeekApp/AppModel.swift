@@ -11,6 +11,8 @@ final class AppModel {
     private(set) var cpuHistory = History<Double>(capacity: 28)
     private(set) var memory: MemoryUsage?
     private(set) var network = NetworkRate.zero
+    private(set) var downloadHistory = History<Double>(capacity: 28)
+    private(set) var uploadHistory = History<Double>(capacity: 28)
     private(set) var disk: DiskUsage?
     private(set) var power: PowerInfo?
     private(set) var thermal = Thermal.current()
@@ -133,12 +135,16 @@ final class AppModel {
             if let counters = NetworkSampler.read() {
                 if let last = lastCounters {
                     network = NetworkSampler.rate(from: last.counters, to: counters, seconds: now.timeIntervalSince(last.time))
+                    downloadHistory.append(network.download)
+                    uploadHistory.append(network.upload)
                 }
                 lastCounters = (counters, now)
             }
         } else if lastCounters != nil {
             lastCounters = nil
             network = .zero
+            downloadHistory.removeAll()
+            uploadHistory.removeAll()
         }
         tickCount += 1
         // Disk space barely moves and is the slowest read, so about once a minute.
@@ -280,6 +286,10 @@ final class AppModel {
         }
         memory = MemoryUsage(used: 11_800_000_000, total: 17_179_869_184, pressure: .normal, pressureFraction: 0.24)
         network = NetworkRate(download: 1_240_000, upload: 86_000)
+        for index in 0..<downloadHistory.capacity {
+            downloadHistory.append(600_000 + 500_000 * sin(Double(index) / 2.5) + (index > 22 ? 400_000 : 0))
+            uploadHistory.append(60_000 + 40_000 * sin(Double(index) / 1.7))
+        }
         disk = DiskUsage(free: 366_400_000_000, total: 494_380_000_000)
         power = PowerInfo(percent: 82, charging: false, pluggedIn: false, minutesLeft: 312, cycleCount: 214,
                           health: 91, watts: 7.4, temperature: 31.2)

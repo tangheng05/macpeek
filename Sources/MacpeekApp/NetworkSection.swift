@@ -14,6 +14,15 @@ struct NetworkSection: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
+            let scale = max(100_000, model.downloadHistory.values.max() ?? 0, model.uploadHistory.values.max() ?? 0)
+            ZStack {
+                Sparkline(values: model.downloadHistory.values.map { $0 / scale }, capacity: model.downloadHistory.capacity)
+                    .fill(Color.accentColor.gradient)
+                Sparkline(values: model.uploadHistory.values.map { $0 / scale }, capacity: model.uploadHistory.capacity)
+                    .fill(Color.secondary.opacity(0.5))
+            }
+            .frame(height: 24)
+            .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 3))
             let apps = byApp
             ForEach(0..<Self.rows, id: \.self) { index in
                 if let apps, index < apps.count {
