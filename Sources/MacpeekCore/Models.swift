@@ -173,8 +173,10 @@ public struct PrivacyReport: Equatable, Sendable {
     public var dns: CheckResult
     public var ipv6: CheckResult
     public var checkedAt: Date
+    public var resolver: ResolverInfo?
 
-    public init(vpn: VPNState, ip: IPInfo?, dns: CheckResult, ipv6: CheckResult, checkedAt: Date) {
+    public init(vpn: VPNState, ip: IPInfo?, dns: CheckResult, ipv6: CheckResult, checkedAt: Date, resolver: ResolverInfo? = nil) {
+        self.resolver = resolver
         self.vpn = vpn
         self.ip = ip
         self.dns = dns

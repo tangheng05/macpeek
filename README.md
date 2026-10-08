@@ -70,7 +70,7 @@ Macpeek needs macOS 26 or later. It isn't notarized yet; both methods clear the 
 
 ## Good to know
 
-- The **DNS check** looks at whether your active DNS servers came from the VPN. It doesn't send test queries to an outside server.
+- The **DNS check** looks at whether your active DNS servers came from the VPN. It doesn't send test queries to an outside server, unless you turn on "Test DNS with an outside service" in Settings. Then Full Test sends one lookup to [ip-api.com](https://ip-api.com) to see which resolver answers.
 - The public IP lookup uses [ipinfo.io](https://ipinfo.io), with [freeipapi.com](https://freeipapi.com) as a fallback. IPv6 is checked with [ipify](https://www.ipify.org).
 - Apps running as another user (system daemons) don't show up in the top-app lists, because reading them needs admin rights.
 
@@ -106,7 +106,7 @@ The cask update needs a `TAP_TOKEN` repository secret: a fine-grained token with
 - [x] Phase 4: network speed, disk, battery, thermal
 - [x] Release workflow, launch at login, welcome window, global shortcut
 - [x] Phase 5: first release on Homebrew
-- [ ] Later: real DNS leak test, Wi-Fi details, charge limit reminders, widgets
+- [ ] Later: Wi-Fi details, charge limit reminders, widgets
 
 ## License
 

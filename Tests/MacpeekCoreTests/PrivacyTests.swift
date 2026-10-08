@@ -107,3 +107,37 @@ import Testing
         #expect(report.text.contains("IPv6: Exposed"))
     }
 }
+
+@Suite struct DNSLeakTestTests {
+    let exit = IPInfo(ip: "1.2.3.4", countryCode: "JP")
+
+    @Test func parsesResolver() {
+        let json = #"{"dns":{"geo":"Tokyo, Japan - SoftEther","ip":"203.0.113.5"}}"#
+        #expect(DNSLeakTest.parse(Data(json.utf8)) == ResolverInfo(ip: "203.0.113.5", country: "Japan", org: "SoftEther"))
+        #expect(DNSLeakTest.parse(Data("nope".utf8)) == nil)
+    }
+
+    @Test func sameCountryIsProtected() {
+        let resolver = ResolverInfo(ip: "203.0.113.5", country: "Japan", org: "SoftEther")
+        #expect(DNSLeakTest.evaluate(resolver: resolver, exit: exit, local: .protected) == .protected)
+    }
+
+    @Test func otherCountryIsExposed() {
+        let resolver = ResolverInfo(ip: "198.51.100.7", country: "Cambodia", org: "Home ISP")
+        #expect(DNSLeakTest.evaluate(resolver: resolver, exit: exit, local: .protected) == .exposed)
+    }
+
+    @Test func publicResolverIsFine() {
+        let resolver = ResolverInfo(ip: "8.8.8.8", country: "United States", org: "Google LLC")
+        #expect(DNSLeakTest.evaluate(resolver: resolver, exit: exit, local: .protected) == .protected)
+    }
+
+    @Test func localExposedStaysExposed() {
+        let resolver = ResolverInfo(ip: "203.0.113.5", country: "Japan", org: "SoftEther")
+        #expect(DNSLeakTest.evaluate(resolver: resolver, exit: exit, local: .exposed) == .exposed)
+    }
+
+    @Test func missingResolverKeepsLocalResult() {
+        #expect(DNSLeakTest.evaluate(resolver: nil, exit: exit, local: .protected) == .protected)
+    }
+}

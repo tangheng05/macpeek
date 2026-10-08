@@ -36,6 +36,11 @@ struct SettingsView: View {
                 Text("Without color, Macpeek matches the system icons. Slower updates use less energy.")
                     .foregroundStyle(.secondary)
             }
+            Section("Privacy") {
+                Toggle("Test DNS with an outside service", isOn: $model.activeDNSTest)
+                Text("Only when you run Full Test while on a VPN. Sends one lookup to ip-api.com.")
+                    .foregroundStyle(.secondary)
+            }
             Section {
                 if !model.notificationsAllowed {
                     LabeledContent("Notifications are off") {

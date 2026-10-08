@@ -31,7 +31,7 @@ struct PrivacySection: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
-            Button { Task { await model.runFullTest() } } label: {
+            Button { Task { await model.runFullTest(userInitiated: true) } } label: {
                 Image(systemName: "arrow.clockwise")
                     .symbolEffect(.rotate, isActive: model.checking)
             }
@@ -116,6 +116,9 @@ struct PrivacySection: View {
             if let dns = report?.dns, dns != .unknown {
                 ValueRow(label: "DNS", value: dns == .protected ? "Through the VPN" : "Around the VPN",
                          valueColor: dns == .exposed ? .orange : .secondary)
+            }
+            if let resolver = report?.resolver {
+                ValueRow(label: "Resolver", value: [resolver.ip, resolver.country].compactMap { $0 }.joined(separator: ", "))
             }
             if let ipv6 = report?.ipv6, ipv6 != .unknown {
                 ValueRow(label: "IPv6", value: ipv6 == .protected ? "Through the VPN" : "Around the VPN",

@@ -146,7 +146,7 @@ final class StatusItemController {
     }
 
     @objc private func runFullTest() {
-        Task { await model.runFullTest() }
+        Task { await model.runFullTest(userInitiated: true) }
     }
 
     @objc private func toggle() {

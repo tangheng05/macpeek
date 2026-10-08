@@ -38,6 +38,7 @@ final class AppModel {
     var coloredMenuBar: Bool { didSet { save(coloredMenuBar, "coloredMenuBar") } }
     var alertVPN: Bool { didSet { save(alertVPN, "alertVPN") } }
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
+    var activeDNSTest: Bool { didSet { save(activeDNSTest, "activeDNSTest") } }
     var alertMemory: Bool { didSet { save(alertMemory, "alertMemory") } }
     var alertThermal: Bool { didSet { save(alertThermal, "alertThermal") } }
     /// Nil means the shortcut is turned off.
@@ -73,7 +74,7 @@ final class AppModel {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
             "interval": 2.0, "showNetwork": false, "showDisk": false, "coloredMenuBar": false,
-            "alertVPN": true, "alertIPChange": true, "alertMemory": true, "alertThermal": false,
+            "alertVPN": true, "alertIPChange": true, "alertMemory": true, "alertThermal": false, "activeDNSTest": false,
         ])
         interval = defaults.double(forKey: "interval")
         showNetwork = defaults.bool(forKey: "showNetwork")
@@ -83,6 +84,7 @@ final class AppModel {
         alertIPChange = defaults.bool(forKey: "alertIPChange")
         alertMemory = defaults.bool(forKey: "alertMemory")
         alertThermal = defaults.bool(forKey: "alertThermal")
+        activeDNSTest = defaults.bool(forKey: "activeDNSTest")
         let combo = defaults.string(forKey: "keyCombo")
         shortcut = combo == "off" ? nil : combo.flatMap { try? JSONDecoder().decode(KeyCombo.self, from: Data($0.utf8)) } ?? .default
     }
@@ -211,7 +213,8 @@ final class AppModel {
         }
     }
 
-    func runFullTest() async {
+    /// Only a request from the user may contact the DNS test service, and only if they allowed it.
+    func runFullTest(userInitiated: Bool = false) async {
         guard !checking else { return }
         checking = true
         defer { checking = false }
@@ -221,10 +224,15 @@ final class AppModel {
         async let ipv6Lookup = PublicIPLookup.fetchIPv6()
         let (ip, ipv6) = await (ipLookup, ipv6Lookup)
         let previous = report
-        report = PrivacyReport(vpn: vpn, ip: ip,
-                               dns: LeakChecks.dns(network, vpn: vpn),
+        var dns = LeakChecks.dns(network, vpn: vpn)
+        var resolver: ResolverInfo?
+        if userInitiated, activeDNSTest, vpn.connected {
+            resolver = await DNSLeakTest.read()
+            dns = DNSLeakTest.evaluate(resolver: resolver, exit: ip, local: dns)
+        }
+        report = PrivacyReport(vpn: vpn, ip: ip, dns: dns,
                                ipv6: LeakChecks.ipv6(publicIPv6: ipv6, network: network, vpn: vpn),
-                               checkedAt: .now)
+                               checkedAt: .now, resolver: resolver)
         if alertIPChange, vpn.connected, previous?.vpn.connected == true,
            let before = previous?.ip?.ip, let after = ip?.ip, before != after {
             notifier.post(title: "Public IP changed", body: "Now \(after), was \(before).")
