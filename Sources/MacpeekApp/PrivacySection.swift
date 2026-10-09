@@ -17,19 +17,24 @@ struct PrivacySection: View {
 
     private var status: some View {
         HStack(spacing: 10) {
-            Image(systemName: icon)
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(tint.gradient, in: .rect(cornerRadius: 7, style: .continuous))
-            VStack(alignment: .leading, spacing: 1) {
-                Text(model.report?.verdict.title ?? "Checking…")
-                    .font(.headline)
-                Text(subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+            HStack(spacing: 10) {
+                // Like a Control Center module: colour only when it means something, a plain fill when off.
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(tint == nil ? AnyShapeStyle(.primary) : AnyShapeStyle(.white))
+                    .contentTransition(.symbolEffect(.replace))
+                    .frame(width: 32, height: 32)
+                    .background(tint.map { AnyShapeStyle($0) } ?? AnyShapeStyle(.fill.tertiary), in: .circle)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.report?.verdict.title ?? "Checking…")
+                        .font(.headline)
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 8)
             Button { Task { await model.runFullTest(userInitiated: true) } } label: {
                 Image(systemName: "arrow.clockwise")
@@ -40,8 +45,7 @@ struct PrivacySection: View {
             .disabled(model.checking)
             .help("Run Full Test (⌘R)")
         }
-        .padding(10)
-        .background(tint.opacity(0.13), in: .rect(cornerRadius: 12, style: .continuous))
+        .animation(.snappy, value: icon)
     }
 
     private var openWiFi: Bool {
@@ -57,12 +61,12 @@ struct PrivacySection: View {
         }
     }
 
-    private var tint: Color {
+    private var tint: Color? {
         if openWiFi { return .orange }
         return switch model.report?.verdict {
         case .protected: .green
         case .leaking: .orange
-        case .unprotected, nil: Color(nsColor: .systemGray)
+        case .unprotected, nil: nil
         }
     }
 
@@ -72,10 +76,16 @@ struct PrivacySection: View {
         switch report.verdict {
         case .leaking:
             return report.dns == .exposed ? "DNS requests go around the VPN" : "IPv6 traffic goes around the VPN"
-        case .protected, .unprotected:
-            let vpn = report.vpn.connected ? (report.vpn.name ?? "VPN on") : "VPN off"
-            return [vpn, place(report.ip)].compactMap { $0 }.joined(separator: ", ")
+        case .protected:
+            let vpn = report.vpn.name ?? "VPN"
+            return country(report.ip).map { "\($0) via \(vpn)" } ?? "Through \(vpn)"
+        case .unprotected:
+            return country(report.ip).map { "Sites see you in \($0)" } ?? "VPN is off"
         }
+    }
+
+    private func country(_ ip: IPInfo?) -> String? {
+        ip?.countryCode.map(Format.countryName)
     }
 
     // MARK: Details
