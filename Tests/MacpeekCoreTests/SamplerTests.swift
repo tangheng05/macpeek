@@ -145,6 +145,28 @@ import Testing
         #expect(usage.memory > 0)
     }
 
+    @Test func interfaceNamesMatchKernel() {
+        var mib: [Int32] = [CTL_NET, PF_ROUTE, 0, 0, NET_RT_IFLIST2, 0]
+        var length = 0
+        sysctl(&mib, 6, nil, &length, nil, 0)
+        var buffer = [UInt8](repeating: 0, count: length)
+        sysctl(&mib, 6, &buffer, &length, nil, 0)
+        var count = 0
+        NetworkSampler.eachInterface(buffer, length: length) { index, name, _ in
+            var expected = [CChar](repeating: 0, count: Int(IF_NAMESIZE))
+            if_indextoname(UInt32(index), &expected)
+            #expect(name == String(decoding: expected.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self))
+            count += 1
+        }
+        #expect(count > 0)
+    }
+
+    @Test func liveProcessesAreOwn() {
+        let pids = ProcessSampler.ownPIDs()
+        #expect(pids.contains(getpid()))
+        #expect(!pids.contains(1))
+    }
+
     /// Without -n, nettop resolves hostnames and can take 5 s per sample when DNS is slow (seen behind a VPN).
     @Test func liveSnapshotIsQuick() async {
         let start = Date.now

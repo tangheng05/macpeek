@@ -58,6 +58,18 @@ public enum WiFiInfo {
                          txRate: interface.transmitRate())
     }
 
+    /// Signal, rate and channel only. Security is the slowest property and only changes with the network,
+    /// which `read()` covers.
+    public static func readSignal(_ previous: WiFiState) -> WiFiState? {
+        guard let interface = CWWiFiClient.shared().interface(), let channel = interface.wlanChannel() else { return nil }
+        var state = previous
+        state.rssi = interface.rssiValue()
+        state.txRate = interface.transmitRate()
+        state.channel = channel.channelNumber
+        state.band = band(channel.channelBand)
+        return state
+    }
+
     public static func security(_ security: CWSecurity) -> WiFiSecurity {
         switch security {
         case .none: .open

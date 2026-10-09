@@ -9,6 +9,7 @@ final class StatusItemController {
     private let popover = NSPopover()
     private let hosting: NSHostingController<PopoverView>
     private var rendered: MenuBarGraph.State?
+    private var renderedVPN: Bool?
     private var outsideClickMonitor: Any?
     private var lastClosed = Date.distantPast
     private var settingsWindow: AppWindow?
@@ -97,9 +98,14 @@ final class StatusItemController {
                 : nil,
             colored: model.coloredMenuBar
         )
-        guard state != rendered, let button = item.button else { return }
-        rendered = state
-        button.image = MenuBarGraph.image(state)
+        let vpn = model.vpn.connected
+        let redraw = rendered.map { !state.looksLike($0) } ?? true
+        guard redraw || vpn != renderedVPN, let button = item.button else { return }
+        if redraw {
+            rendered = state
+            button.image = MenuBarGraph.image(state)
+        }
+        renderedVPN = vpn
         let summary = spokenSummary()
         button.toolTip = summary
         button.setAccessibilityLabel("Macpeek")
@@ -159,6 +165,7 @@ final class StatusItemController {
             // A click on the icon first closes the popover (it's outside it), then fires this
             // action; reopening right away would make it flicker, so treat it as the close.
             guard Date.now.timeIntervalSince(lastClosed) > 0.3 else { return }
+            AppIcons.forgetApps()
             model.popoverOpen = true
             setPopoverContent(visible: true)
             fitPopover()

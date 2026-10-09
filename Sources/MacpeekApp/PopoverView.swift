@@ -158,9 +158,11 @@ struct Sparkline: Shape {
 @MainActor
 enum AppIcons {
     private static var cache: [String: NSImage] = [:]
+    private static var apps: [String: (name: String, path: String?)] = [:]
+    private static let fallback = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) ?? NSImage()
 
     static func icon(for path: String?) -> NSImage {
-        guard let path else { return NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil) ?? NSImage() }
+        guard let path else { return fallback }
         if let icon = cache[path] { return icon }
         let icon = NSWorkspace.shared.icon(forFile: path)
         cache[path] = icon
@@ -170,6 +172,18 @@ enum AppIcons {
     /// nettop cuts process names to 15 characters ("Brave Browser H"), so match the longest
     /// running app whose name starts the process name, then an installed app of that name.
     static func app(forProcess name: String) -> (name: String, path: String?) {
+        if let app = apps[name] { return app }
+        let app = lookUp(name)
+        apps[name] = app
+        return app
+    }
+
+    /// Apps launch and quit between popover openings, so matches only last one session.
+    static func forgetApps() {
+        apps.removeAll()
+    }
+
+    private static func lookUp(_ name: String) -> (name: String, path: String?) {
         let running = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular }
             .compactMap { app in app.localizedName.map { (name: $0, path: app.bundleURL?.path) } }

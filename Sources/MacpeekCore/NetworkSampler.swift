@@ -22,22 +22,34 @@ public enum NetworkSampler {
         guard sysctl(&mib, 6, &buffer, &length, nil, 0) == 0 else { return nil }
 
         var counters = NetworkCounters(received: 0, sent: 0)
+        eachInterface(buffer, length: length) { _, name, data in
+            if countsTowardTotal(name) {
+                counters.received &+= data.ifi_ibytes
+                counters.sent &+= data.ifi_obytes
+            }
+        }
+        return counters
+    }
+
+    /// Each RTM_IFINFO2 message is followed by a sockaddr_dl holding the interface name, which saves
+    /// an if_indextoname call per interface.
+    static func eachInterface(_ buffer: [UInt8], length: Int, _ body: (UInt16, String, if_data64) -> Void) {
         buffer.withUnsafeBytes { raw in
             var offset = 0
             while offset + MemoryLayout<if_msghdr>.size <= length {
                 let header = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr.self)
-                guard header.ifm_msglen > 0 else { break }
-                if Int32(header.ifm_type) == RTM_IFINFO2, offset + MemoryLayout<if_msghdr2>.size <= length {
+                let end = offset + Int(header.ifm_msglen)
+                guard header.ifm_msglen > 0, end <= length else { break }
+                let address = offset + MemoryLayout<if_msghdr2>.size
+                // sockaddr_dl: sdl_nlen at byte 5, the name from byte 8.
+                if Int32(header.ifm_type) == RTM_IFINFO2, address + 8 <= end {
                     let info = raw.loadUnaligned(fromByteOffset: offset, as: if_msghdr2.self)
-                    if countsTowardTotal(interfaceName(info.ifm_index)) {
-                        counters.received &+= info.ifm_data.ifi_ibytes
-                        counters.sent &+= info.ifm_data.ifi_obytes
-                    }
+                    let nameEnd = min(end, address + 8 + Int(raw[address + 5]))
+                    body(info.ifm_index, String(decoding: raw[(address + 8)..<nameEnd], as: UTF8.self), info.ifm_data)
                 }
-                offset += Int(header.ifm_msglen)
+                offset = end
             }
         }
-        return counters
     }
 
     /// Wi-Fi, Ethernet and cellular only. VPN traffic also crosses one of these, so counting
@@ -52,12 +64,6 @@ public enum NetworkSampler {
         let down = new.received >= old.received ? Double(new.received - old.received) : 0
         let up = new.sent >= old.sent ? Double(new.sent - old.sent) : 0
         return NetworkRate(download: down / seconds, upload: up / seconds)
-    }
-
-    static func interfaceName(_ index: UInt16) -> String {
-        var name = [CChar](repeating: 0, count: Int(IF_NAMESIZE))
-        guard if_indextoname(UInt32(index), &name) != nil else { return "" }
-        return String(decoding: name.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
     }
 
     // MARK: Per-app traffic

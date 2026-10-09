@@ -8,6 +8,7 @@ final class HotKey {
     static var action: (() -> Void)?
     private var ref: EventHotKeyRef?
     private var current: KeyCombo?
+    private var registered = true
 
     init() {
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
@@ -20,12 +21,15 @@ final class HotKey {
     /// Returns false when another app already owns the combination.
     @discardableResult
     func register(_ combo: KeyCombo?) -> Bool {
-        if combo == current, combo == nil || ref != nil { return true }
+        // Called on every model change, so a taken combination isn't retried until it changes.
+        if combo == current { return registered }
         if let ref { UnregisterEventHotKey(ref) }
         ref = nil
         current = combo
+        registered = true
         guard let combo else { return true }
         let id = EventHotKeyID(signature: OSType(0x4D50_4B4D), id: 1)
-        return RegisterEventHotKey(combo.keyCode, combo.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr
+        registered = RegisterEventHotKey(combo.keyCode, combo.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref) == noErr
+        return registered
     }
 }

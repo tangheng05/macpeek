@@ -23,6 +23,8 @@ public struct RawProcess: Equatable, Sendable {
 public final class ProcessSampler {
     private var previous: [Int32: (cpu: UInt64, energy: UInt64)] = [:]
     private var previousTime: UInt64 = 0
+    /// Keyed by start time too, since pids get reused.
+    private var paths: [Int32: (start: UInt64, path: String)] = [:]
 
     /// rusage CPU times are in Mach ticks, which aren't nanoseconds on Apple silicon.
     private static let nanosPerTick: Double = {
@@ -39,8 +41,12 @@ public final class ProcessSampler {
         let elapsed = previousTime == 0 ? 0 : Double(now - previousTime)
         var current: [Int32: (cpu: UInt64, energy: UInt64)] = [:]
         var rows: [RawProcess] = []
-        for pid in Self.allPIDs() where pid > 0 {
+        var seenPaths: [Int32: (start: UInt64, path: String)] = [:]
+        for pid in Self.ownPIDs() where pid > 0 {
             guard let usage = Self.rusage(pid) else { continue }
+            let start = usage.ri_proc_start_abstime
+            let path = paths[pid].flatMap { $0.start == start ? $0.path : nil } ?? Self.path(pid)
+            seenPaths[pid] = (start, path)
             let cpuTime = UInt64(Double(usage.ri_user_time &+ usage.ri_system_time) * Self.nanosPerTick)
             current[pid] = (cpuTime, usage.ri_energy_nj)
             var cpu = 0.0
@@ -50,17 +56,19 @@ public final class ProcessSampler {
                 // Nanojoules per nanosecond is watts. Intel Macs report no energy, so this stays 0.
                 if usage.ri_energy_nj >= old.energy { power = Double(usage.ri_energy_nj - old.energy) / elapsed }
             }
-            rows.append(RawProcess(pid: pid, path: Self.path(pid), cpu: cpu, memory: usage.ri_phys_footprint,
+            rows.append(RawProcess(pid: pid, path: path, cpu: cpu, memory: usage.ri_phys_footprint,
                                    power: power))
         }
         previous = current
         previousTime = now
+        paths = seenPaths
         return Self.group(rows)
     }
 
     /// Call when the popover closes, so the next open doesn't average over the time it was shut.
     public func reset() {
         previous = [:]
+        paths = [:]
         previousTime = 0
     }
 
@@ -92,17 +100,19 @@ public final class ProcessSampler {
     }
 
     static func displayName(path: String) -> String {
-        let last = path.split(separator: "/").last.map(String.init) ?? path
-        return last.hasSuffix(".app") ? String(last.dropLast(4)) : last
+        let last = path.lastIndex(of: "/").map { path[path.index(after: $0)...] } ?? path[...]
+        return String(last.hasSuffix(".app") ? last.dropLast(4) : last)
     }
 
-    static func allPIDs() -> [Int32] {
-        let count = proc_listallpids(nil, 0)
-        guard count > 0 else { return [] }
+    /// Only this user's processes: rusage fails for anyone else's, so listing them is wasted work.
+    static func ownPIDs() -> [Int32] {
+        let uid = UInt32(getuid())
+        let bytes = proc_listpids(UInt32(PROC_UID_ONLY), uid, nil, 0)
+        guard bytes > 0 else { return [] }
         // Room for processes started between the two calls.
-        var pids = [Int32](repeating: 0, count: Int(count) + 64)
-        let found = pids.withUnsafeMutableBytes { proc_listallpids($0.baseAddress, Int32($0.count)) }
-        return found > 0 ? Array(pids.prefix(Int(found))) : []
+        var pids = [Int32](repeating: 0, count: Int(bytes) / MemoryLayout<Int32>.size + 64)
+        let found = pids.withUnsafeMutableBytes { proc_listpids(UInt32(PROC_UID_ONLY), uid, $0.baseAddress, Int32($0.count)) }
+        return found > 0 ? Array(pids.prefix(Int(found) / MemoryLayout<Int32>.size)) : []
     }
 
     static func rusage(_ pid: Int32) -> rusage_info_v6? {

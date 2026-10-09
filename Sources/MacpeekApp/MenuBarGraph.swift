@@ -24,6 +24,13 @@ enum MenuBarGraph {
 
         /// A pressure warning needs real colour, which a template image can't carry.
         var isTemplate: Bool { !colored && pressure == .normal }
+
+        /// Idle CPU jitters by a few points, which moves the ring by about a pixel; not worth a redraw.
+        func looksLike(_ other: State) -> Bool {
+            var a = self, b = other
+            (a.cpu, a.ram, b.cpu, b.ram) = (0, 0, 0, 0)
+            return a == b && abs(max(cpu, 3) - max(other.cpu, 3)) < 4 && abs(ram - other.ram) < 5
+        }
     }
 
     private static let height: CGFloat = 18

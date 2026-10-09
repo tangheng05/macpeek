@@ -37,7 +37,12 @@ final class AppModel {
         didSet { save(interval, "interval"); if timer != nil { scheduleSampling() } }
     }
     var showNetwork: Bool { didSet { save(showNetwork, "showNetwork") } }
-    var showDisk: Bool { didSet { save(showDisk, "showDisk") } }
+    var showDisk: Bool {
+        didSet {
+            save(showDisk, "showDisk")
+            if showDisk { readDisk() }
+        }
+    }
     var coloredMenuBar: Bool { didSet { save(coloredMenuBar, "coloredMenuBar") } }
     var alertVPN: Bool { didSet { save(alertVPN, "alertVPN") } }
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
@@ -77,6 +82,7 @@ final class AppModel {
     @ObservationIgnored private var lastMemoryAlert = Date.distantPast
     @ObservationIgnored private var remindedUnplug = false
     @ObservationIgnored private var wifiRead: Task<Void, Never>?
+    @ObservationIgnored private var systemSlept = false
 
     init() {
         let defaults = UserDefaults.standard
@@ -106,7 +112,7 @@ final class AppModel {
 
     func start() {
         Task { await refreshNotificationStatus() }
-        disk = DiskInfo.read()
+        if showDisk { readDisk() }
         powerChanged()
         vpn = VPNDetector.evaluate(VPNDetector.read())
         tick()
@@ -160,26 +166,47 @@ final class AppModel {
             uploadHistory.removeAll()
         }
         tickCount += 1
-        // Disk space barely moves and is the slowest read, so about once a minute.
-        if tickCount % max(1, Int(60 / interval)) == 0 { disk = DiskInfo.read() }
+        // Disk space barely moves and is the slowest read, so about once a minute, and only while shown.
+        if popoverOpen || showDisk, tickCount % max(1, Int(60 / interval)) == 0 { readDisk() }
         if popoverOpen {
             apps = processSampler.sample()
             if tickCount % max(1, Int(4 / interval)) == 0 { refreshWiFi() }
         }
     }
 
+    private func readDisk() {
+        let reading = DiskInfo.read()
+        if reading != disk { disk = reading }
+    }
+
+    private func readPower() {
+        let reading = BatteryInfo.read()
+        if reading != power { power = reading }
+    }
+
     private func pause() {
         timer?.invalidate()
         timer = nil
         talkersTask?.cancel()
+        networkSettle?.cancel()
+        recheckTimer?.invalidate()
+        recheckTimer = nil
     }
 
+    /// Waking only the display doesn't change the network, so the full test reruns only after a real
+    /// sleep or when the VPN changed meanwhile.
     private func resume() {
         guard timer == nil else { return }
         lastTicks = nil
         lastCounters = nil
         scheduleSampling()
-        networkChanged()
+        if popoverOpen { popoverChanged() }
+        if systemSlept || VPNDetector.evaluate(VPNDetector.read()) != vpn {
+            networkChanged()
+        } else {
+            scheduleRecheck()
+        }
+        systemSlept = false
     }
 
     private func popoverChanged() {
@@ -189,8 +216,8 @@ final class AppModel {
         processSampler.reset()
         apps = processSampler.sample()
         if lastCounters == nil, let counters = NetworkSampler.read() { lastCounters = (counters, .now) }
-        disk = DiskInfo.read()
-        power = BatteryInfo.read()
+        readDisk()
+        readPower()
         refreshWiFi()
         talkersTask = Task { [weak self] in
             var last: (counters: [String: NetworkCounters], time: Date)?
@@ -203,8 +230,10 @@ final class AppModel {
                                                           seconds: now.timeIntervalSince(last.time),
                                                           limit: NetworkSection.rows * 3)
                 }
+                // The first rates come quickly; after that nettop's ~15 ms of CPU isn't worth spending every 2 s.
+                let wait = last == nil ? 2.0 : 4.0
                 last = (snapshot, now)
-                try? await Task.sleep(for: .seconds(2))
+                try? await Task.sleep(for: .seconds(wait))
             }
         }
     }
@@ -277,8 +306,11 @@ final class AppModel {
     /// Signal and rate only, for the open popover. Skips if the last read hasn't finished.
     private func refreshWiFi() {
         guard wifiRead == nil else { return }
+        let previous = wifi
         wifiRead = Task { [weak self] in
-            let reading = await Self.readWiFi()
+            let reading = await Task.detached(priority: .utility) {
+                previous.map(WiFiInfo.readSignal) ?? WiFiInfo.read()
+            }.value
             guard let self else { return }
             self.wifiRead = nil
             if let reading, reading != self.wifi { self.wifi = reading }
@@ -290,7 +322,9 @@ final class AppModel {
         recheckTimer?.invalidate()
         recheckTimer = nil
         guard vpn.connected else { return }
-        let timer = Timer(timeInterval: 1800, repeats: false) { [weak self] _ in
+        // Counted from the last check, so display wakes that reschedule this don't keep pushing it back.
+        let due = 1800 - Date.now.timeIntervalSince(report?.checkedAt ?? .now)
+        let timer = Timer(timeInterval: max(60, due), repeats: false) { [weak self] _ in
             Task { @MainActor in await self?.runFullTest() }
         }
         timer.tolerance = 300
@@ -391,7 +425,7 @@ final class AppModel {
 
     /// Reminds once per time on the charger.
     private func powerChanged() {
-        power = BatteryInfo.read()
+        readPower()
         guard let power else { return }
         if !power.pluggedIn {
             remindedUnplug = false
@@ -412,7 +446,7 @@ final class AppModel {
     private func thermalChanged() {
         let level = Thermal.current()
         let wasThrottling = thermal.isThrottling
-        thermal = level
+        if level != thermal { thermal = level }
         if level.isThrottling, !wasThrottling, alertThermal {
             notifier.post(title: "Your Mac is running hot", body: "macOS is slowing it down to cool off.")
         }
@@ -420,12 +454,20 @@ final class AppModel {
 
     private func watchSleep() {
         let center = NSWorkspace.shared.notificationCenter
-        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.willSleepNotification] {
+        center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.systemSlept = true
+                self?.pause()
+            }
+        }
+        // Switching to another user leaves this one running in the background.
+        for name in [NSWorkspace.screensDidSleepNotification, NSWorkspace.sessionDidResignActiveNotification] {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.pause() }
             }
         }
-        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification] {
+        for name in [NSWorkspace.screensDidWakeNotification, NSWorkspace.didWakeNotification,
+                     NSWorkspace.sessionDidBecomeActiveNotification] {
             center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
                 MainActor.assumeIsolated { self?.resume() }
             }
