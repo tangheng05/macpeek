@@ -8,6 +8,8 @@ enum MenuBarGraph {
     struct Column: Equatable {
         var top: String
         var bottom: String
+        /// Room for the widest value, so the item keeps one width as the numbers change.
+        var reserved: CGFloat = 0
     }
 
     struct State: Equatable {
@@ -126,10 +128,24 @@ enum MenuBarGraph {
     private static let columnFont = NSFont.monospacedDigitSystemFont(ofSize: 9, weight: .medium)
 
     @MainActor
+    static let rateWidth = widest(["↓ ", "↑ "], units: ["B/s", "KB/s", "MB/s", "GB/s"])
+    @MainActor
+    static let sizeWidth = widest(["F: ", "U: "], units: ["B", "KB", "MB", "GB", "TB"])
+
+    /// Digits are monospaced, so "999.9" is as wide as any number `Format` shows.
+    @MainActor
+    private static func widest(_ prefixes: [String], units: [String]) -> CGFloat {
+        prefixes.flatMap { prefix in units.map { textWidth(prefix + "999.9 " + $0) } }.max() ?? 0
+    }
+
+    @MainActor
+    private static func textWidth(_ text: String) -> CGFloat {
+        ceil(NSString(string: text).size(withAttributes: [.font: columnFont]).width)
+    }
+
+    @MainActor
     private static func columnWidth(_ column: Column) -> CGFloat {
-        let attributes: [NSAttributedString.Key: Any] = [.font: columnFont]
-        return max(NSString(string: column.top).size(withAttributes: attributes).width,
-                   NSString(string: column.bottom).size(withAttributes: attributes).width)
+        max(column.reserved, textWidth(column.top), textWidth(column.bottom))
     }
 
     @MainActor

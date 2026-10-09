@@ -88,10 +88,12 @@ final class StatusItemController {
             ram: Int(((model.memory?.pressureFraction ?? 0) * 100).rounded()),
             pressure: model.memory?.pressure ?? .normal,
             network: model.showNetwork
-                ? .init(top: "↓ " + Format.rate(model.network.download), bottom: "↑ " + Format.rate(model.network.upload))
+                ? .init(top: "↓ " + Format.rate(model.network.download), bottom: "↑ " + Format.rate(model.network.upload),
+                        reserved: MenuBarGraph.rateWidth)
                 : nil,
             disk: model.showDisk
-                ? model.disk.map { .init(top: "F: " + Format.bytes($0.free), bottom: "U: " + Format.bytes($0.used)) }
+                ? model.disk.map { .init(top: "F: " + Format.bytes($0.free), bottom: "U: " + Format.bytes($0.used),
+                                         reserved: MenuBarGraph.sizeWidth) }
                 : nil,
             colored: model.coloredMenuBar
         )

@@ -9,6 +9,9 @@ import Testing
         #expect(Format.memory(8 * 1024 * 1024 * 1024) == "8.0 GB")
         #expect(Format.rate(1_200_000) == "1.2 MB/s")
         #expect(Format.rate(-5) == "0 B/s")
+        #expect(Format.rate(999_940) == "999.9 KB/s")
+        #expect(Format.rate(999_960) == "1.0 MB/s")
+        #expect(Format.bytes(999_990_000_000) == "1.0 TB")
     }
 
     @Test func percent() {

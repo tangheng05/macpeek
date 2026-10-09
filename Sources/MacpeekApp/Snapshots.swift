@@ -13,8 +13,8 @@ enum Snapshots {
         model.loadSample()
         let cpu = Int((model.cpu.total * 100).rounded())
         let all = MenuBarGraph.State(cpu: cpu, ram: 24, pressure: .normal,
-                                     network: .init(top: "↓ 1.2 MB/s", bottom: "↑ 86.0 KB/s"),
-                                     disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB"))
+                                     network: .init(top: "↓ 1.2 MB/s", bottom: "↑ 86.0 KB/s", reserved: MenuBarGraph.rateWidth),
+                                     disk: .init(top: "F: 366.4 GB", bottom: "U: 127.9 GB", reserved: MenuBarGraph.sizeWidth))
         var colored = all
         colored.colored = true
         let states: [(String, MenuBarGraph.State)] = [

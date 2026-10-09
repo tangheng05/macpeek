@@ -50,7 +50,8 @@ public enum Format {
     private static func scaled(_ value: Double, base: Double, units: [String]) -> String {
         var amount = value
         var unit = 0
-        while amount >= base, unit < units.count - 1 {
+        // Compare after rounding, so 999.96 KB shows as "1.0 MB" rather than "1000.0 KB".
+        while (amount * 10).rounded() >= base * 10, unit < units.count - 1 {
             amount /= base
             unit += 1
         }
