@@ -69,7 +69,8 @@ public enum NetworkSampler {
             DispatchQueue.global(qos: .utility).async {
                 let process = Process()
                 process.executableURL = URL(fileURLWithPath: "/usr/bin/nettop")
-                process.arguments = ["-P", "-L", "1", "-x", "-J", "bytes_in,bytes_out"]
+                // -n skips hostname lookups, which can stall a sample for seconds when DNS is slow.
+                process.arguments = ["-P", "-L", "1", "-x", "-n", "-J", "bytes_in,bytes_out"]
                 let pipe = Pipe()
                 process.standardOutput = pipe
                 process.standardError = FileHandle.nullDevice

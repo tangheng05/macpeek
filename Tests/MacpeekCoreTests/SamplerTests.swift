@@ -145,6 +145,14 @@ import Testing
         #expect(usage.memory > 0)
     }
 
+    /// Without -n, nettop resolves hostnames and can take 5 s per sample when DNS is slow (seen behind a VPN).
+    @Test func liveSnapshotIsQuick() async {
+        let start = Date.now
+        let snapshot = await NetworkSampler.snapshot()
+        #expect(!snapshot.isEmpty)
+        #expect(Date.now.timeIntervalSince(start) < 2)
+    }
+
     @Test func groupingSumsPower() {
         let rows = [
             RawProcess(pid: 1, path: "/Applications/Slack.app/Contents/MacOS/Slack", cpu: 1, memory: 1, power: 0.5),
