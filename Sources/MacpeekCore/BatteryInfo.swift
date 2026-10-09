@@ -32,6 +32,11 @@ public enum BatteryInfo {
                          temperature: registry["Temperature"].map { Double($0) / 100 })
     }
 
+    /// A limit of 0 means reminders are off.
+    public static func pastLimit(_ power: PowerInfo, limit: Int) -> Bool {
+        limit > 0 && power.pluggedIn && power.percent >= limit
+    }
+
     /// Full-charge capacity as a percentage of what the battery held new.
     static func health(rawMax: Int?, design: Int?) -> Int? {
         guard let rawMax, let design, design > 0, rawMax > 100 else { return nil }

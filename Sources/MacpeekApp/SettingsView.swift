@@ -52,6 +52,14 @@ struct SettingsView: View {
                 Toggle("Joining open Wi-Fi without VPN", isOn: $model.alertOpenWiFi)
                 Toggle("Memory runs low", isOn: $model.alertMemory)
                 Toggle("Mac is throttling from heat", isOn: $model.alertThermal)
+                if model.power != nil {
+                    Picker("Battery charges to", selection: $model.chargeLimit) {
+                        Text("Off").tag(0)
+                        Text("80%").tag(80)
+                        Text("85%").tag(85)
+                        Text("90%").tag(90)
+                    }
+                }
             } header: {
                 Text("Notify Me When")
             }

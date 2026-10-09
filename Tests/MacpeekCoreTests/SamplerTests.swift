@@ -194,4 +194,20 @@ import Testing
         #expect(info.health == nil)
         #expect(info.watts == nil)
     }
+
+    @Test func chargeLimit() {
+        let plugged = PowerInfo(percent: 80, charging: true, pluggedIn: true, minutesLeft: nil, cycleCount: nil, health: nil)
+        #expect(BatteryInfo.pastLimit(plugged, limit: 80))
+        #expect(!BatteryInfo.pastLimit(plugged, limit: 85))
+        #expect(!BatteryInfo.pastLimit(plugged, limit: 0))
+        var unplugged = plugged
+        unplugged.pluggedIn = false
+        unplugged.charging = false
+        #expect(!BatteryInfo.pastLimit(unplugged, limit: 80))
+        // macOS can hold the charge while plugged in; that still counts.
+        var held = plugged
+        held.charging = false
+        held.percent = 90
+        #expect(BatteryInfo.pastLimit(held, limit: 80))
+    }
 }

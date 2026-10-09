@@ -45,6 +45,8 @@ final class AppModel {
     var activeDNSTest: Bool { didSet { save(activeDNSTest, "activeDNSTest") } }
     var alertMemory: Bool { didSet { save(alertMemory, "alertMemory") } }
     var alertThermal: Bool { didSet { save(alertThermal, "alertThermal") } }
+    /// Percent to remind at while plugged in; 0 is off.
+    var chargeLimit: Int { didSet { save(chargeLimit, "chargeLimit") } }
     /// Nil means the shortcut is turned off.
     var shortcut: KeyCombo? {
         didSet {
@@ -73,6 +75,7 @@ final class AppModel {
     @ObservationIgnored private var powerWatcher: PowerWatcher?
     @ObservationIgnored private var pressureSource: DispatchSourceMemoryPressure?
     @ObservationIgnored private var lastMemoryAlert = Date.distantPast
+    @ObservationIgnored private var remindedUnplug = false
     @ObservationIgnored private var wifiRead: Task<Void, Never>?
 
     init() {
@@ -80,6 +83,7 @@ final class AppModel {
         defaults.register(defaults: [
             "interval": 2.0, "showNetwork": false, "showDisk": false, "coloredMenuBar": false,
             "alertVPN": true, "alertIPChange": true, "alertOpenWiFi": true, "alertMemory": true, "alertThermal": false, "activeDNSTest": false,
+            "chargeLimit": 0,
         ])
         interval = defaults.double(forKey: "interval")
         showNetwork = defaults.bool(forKey: "showNetwork")
@@ -90,6 +94,7 @@ final class AppModel {
         alertOpenWiFi = defaults.bool(forKey: "alertOpenWiFi")
         alertMemory = defaults.bool(forKey: "alertMemory")
         alertThermal = defaults.bool(forKey: "alertThermal")
+        chargeLimit = defaults.integer(forKey: "chargeLimit")
         activeDNSTest = defaults.bool(forKey: "activeDNSTest")
         let combo = defaults.string(forKey: "keyCombo")
         shortcut = combo == "off" ? nil : combo.flatMap { try? JSONDecoder().decode(KeyCombo.self, from: Data($0.utf8)) } ?? .default
@@ -102,12 +107,12 @@ final class AppModel {
     func start() {
         Task { await refreshNotificationStatus() }
         disk = DiskInfo.read()
-        power = BatteryInfo.read()
+        powerChanged()
         vpn = VPNDetector.evaluate(VPNDetector.read())
         tick()
         scheduleSampling()
         networkWatcher = NetworkWatcher { [weak self] in self?.networkChanged() }
-        powerWatcher = PowerWatcher { [weak self] in self?.power = BatteryInfo.read() }
+        powerWatcher = PowerWatcher { [weak self] in self?.powerChanged() }
         watchMemoryPressure()
         watchThermal()
         watchSleep()
@@ -382,6 +387,19 @@ final class AppModel {
         let top = apps.max { $0.memory < $1.memory }
         notifier.post(title: "Memory is running out",
                       body: top.map { "\($0.name) is using \(Format.memory($0.memory))." } ?? "Quit an app you aren't using.")
+    }
+
+    /// Reminds once per time on the charger.
+    private func powerChanged() {
+        power = BatteryInfo.read()
+        guard let power else { return }
+        if !power.pluggedIn {
+            remindedUnplug = false
+        } else if !remindedUnplug, BatteryInfo.pastLimit(power, limit: chargeLimit) {
+            remindedUnplug = true
+            notifier.post(title: "Battery is at \(power.percent)%",
+                          body: "Unplug the charger to keep the battery below \(chargeLimit)%.")
+        }
     }
 
     private func watchThermal() {
