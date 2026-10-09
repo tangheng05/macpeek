@@ -22,6 +22,9 @@ final class AppModel {
 
     // Privacy
     private(set) var vpn = VPNState.off
+    private(set) var wifi: WiFiState?
+    /// On unencrypted Wi-Fi with no VPN.
+    private(set) var onOpenWiFi = false
     private(set) var report: PrivacyReport?
     private(set) var checking = false
 
@@ -38,6 +41,7 @@ final class AppModel {
     var coloredMenuBar: Bool { didSet { save(coloredMenuBar, "coloredMenuBar") } }
     var alertVPN: Bool { didSet { save(alertVPN, "alertVPN") } }
     var alertIPChange: Bool { didSet { save(alertIPChange, "alertIPChange") } }
+    var alertOpenWiFi: Bool { didSet { save(alertOpenWiFi, "alertOpenWiFi") } }
     var activeDNSTest: Bool { didSet { save(activeDNSTest, "activeDNSTest") } }
     var alertMemory: Bool { didSet { save(alertMemory, "alertMemory") } }
     var alertThermal: Bool { didSet { save(alertThermal, "alertThermal") } }
@@ -69,12 +73,13 @@ final class AppModel {
     @ObservationIgnored private var powerWatcher: PowerWatcher?
     @ObservationIgnored private var pressureSource: DispatchSourceMemoryPressure?
     @ObservationIgnored private var lastMemoryAlert = Date.distantPast
+    @ObservationIgnored private var wifiRead: Task<Void, Never>?
 
     init() {
         let defaults = UserDefaults.standard
         defaults.register(defaults: [
             "interval": 2.0, "showNetwork": false, "showDisk": false, "coloredMenuBar": false,
-            "alertVPN": true, "alertIPChange": true, "alertMemory": true, "alertThermal": false, "activeDNSTest": false,
+            "alertVPN": true, "alertIPChange": true, "alertOpenWiFi": true, "alertMemory": true, "alertThermal": false, "activeDNSTest": false,
         ])
         interval = defaults.double(forKey: "interval")
         showNetwork = defaults.bool(forKey: "showNetwork")
@@ -82,6 +87,7 @@ final class AppModel {
         coloredMenuBar = defaults.bool(forKey: "coloredMenuBar")
         alertVPN = defaults.bool(forKey: "alertVPN")
         alertIPChange = defaults.bool(forKey: "alertIPChange")
+        alertOpenWiFi = defaults.bool(forKey: "alertOpenWiFi")
         alertMemory = defaults.bool(forKey: "alertMemory")
         alertThermal = defaults.bool(forKey: "alertThermal")
         activeDNSTest = defaults.bool(forKey: "activeDNSTest")
@@ -151,7 +157,10 @@ final class AppModel {
         tickCount += 1
         // Disk space barely moves and is the slowest read, so about once a minute.
         if tickCount % max(1, Int(60 / interval)) == 0 { disk = DiskInfo.read() }
-        if popoverOpen { apps = processSampler.sample() }
+        if popoverOpen {
+            apps = processSampler.sample()
+            if tickCount % max(1, Int(4 / interval)) == 0 { refreshWiFi() }
+        }
     }
 
     private func pause() {
@@ -177,6 +186,7 @@ final class AppModel {
         if lastCounters == nil, let counters = NetworkSampler.read() { lastCounters = (counters, .now) }
         disk = DiskInfo.read()
         power = BatteryInfo.read()
+        refreshWiFi()
         talkersTask = Task { [weak self] in
             var last: (counters: [String: NetworkCounters], time: Date)?
             while !Task.isCancelled {
@@ -205,6 +215,8 @@ final class AppModel {
         networkSettle = Task { [weak self] in
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled, let self else { return }
+            // Before the full test, whose lookups can hang behind a captive portal.
+            await self.updateWiFi(VPNDetector.read())
             await self.runFullTest()
             if wasConnected, !self.vpn.connected, self.alertVPN {
                 self.notifier.post(title: "VPN disconnected",
@@ -220,6 +232,7 @@ final class AppModel {
         defer { checking = false }
         let network = VPNDetector.read()
         vpn = VPNDetector.evaluate(network)
+        await updateWiFi(network)
         async let ipLookup = PublicIPLookup.fetch()
         async let ipv6Lookup = PublicIPLookup.fetchIPv6()
         let (ip, ipv6) = await (ipLookup, ipv6Lookup)
@@ -238,6 +251,33 @@ final class AppModel {
             notifier.post(title: "Public IP changed", body: "Now \(after), was \(before).")
         }
         scheduleRecheck()
+    }
+
+    /// CoreWLAN waits on airportd for a few milliseconds, so read off the main thread.
+    private static func readWiFi() async -> WiFiState? {
+        await Task.detached(priority: .utility) { WiFiInfo.read() }.value
+    }
+
+    private func updateWiFi(_ network: NetworkState) async {
+        let reading = await Self.readWiFi()
+        if reading != wifi { wifi = reading }
+        let open = WiFiInfo.warn(reading, network: network, vpn: VPNDetector.evaluate(network))
+        guard open != onOpenWiFi else { return }
+        onOpenWiFi = open
+        if open, alertOpenWiFi {
+            notifier.post(title: "You're on open Wi-Fi", body: "Traffic on this network isn't encrypted. Turn on your VPN.")
+        }
+    }
+
+    /// Signal and rate only, for the open popover. Skips if the last read hasn't finished.
+    private func refreshWiFi() {
+        guard wifiRead == nil else { return }
+        wifiRead = Task { [weak self] in
+            let reading = await Self.readWiFi()
+            guard let self else { return }
+            self.wifiRead = nil
+            if let reading, reading != self.wifi { self.wifi = reading }
+        }
     }
 
     /// While a VPN is up, look again every 30 minutes in case it silently stopped routing.
@@ -313,6 +353,7 @@ final class AppModel {
             AppTraffic(name: "Music", download: 120_000, upload: 6_000),
         ]
         vpn = VPNState(connected: true, interface: "utun4", fullTunnel: true, name: "WireGuard")
+        wifi = WiFiState(interface: "en0", security: .wpa3, rssi: -52, channel: 36, band: "5 GHz", txRate: 866)
         report = PrivacyReport(vpn: vpn,
                                ip: IPInfo(ip: "219.100.37.236", city: "Tokyo", region: "Tokyo", countryCode: "JP", isp: "SoftEther"),
                                dns: .protected, ipv6: .protected, checkedAt: .now)

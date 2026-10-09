@@ -49,6 +49,7 @@ struct SettingsView: View {
                 }
                 Toggle("VPN disconnects", isOn: $model.alertVPN)
                 Toggle("Public IP changes while on VPN", isOn: $model.alertIPChange)
+                Toggle("Joining open Wi-Fi without VPN", isOn: $model.alertOpenWiFi)
                 Toggle("Memory runs low", isOn: $model.alertMemory)
                 Toggle("Mac is throttling from heat", isOn: $model.alertThermal)
             } header: {

@@ -53,7 +53,7 @@ Macpeek needs macOS 26 or later. It isn't notarized yet; both methods clear the 
 
 - **Privacy.** Whether you're protected, with your VPN and country at a glance. Open Details for your public IP (click to copy), location, provider, and whether DNS and IPv6 go through the VPN. Run Full Test (⌘R) and Copy Report (⌘C).
 - **System.** CPU, memory and disk, plus the top five apps by CPU, memory or energy. Helper processes are folded into their app, so Chrome counts as one. A heat warning appears only when your Mac is slowing down to cool.
-- **Network.** Live download and upload speed, and which apps are using it.
+- **Network.** Live download and upload speed, which apps are using it, and Wi-Fi security, band, signal and link rate. You get a warning when you join open Wi-Fi without a VPN.
 - **Battery.** Charge, power draw in watts, health and cycle count.
 
 **Open it from anywhere** with ⌃⌥⌘M (change it in Settings), and have it start at login.
@@ -106,7 +106,8 @@ The cask update needs a `TAP_TOKEN` repository secret: a fine-grained token with
 - [x] Phase 4: network speed, disk, battery, thermal
 - [x] Release workflow, launch at login, welcome window, global shortcut
 - [x] Phase 5: first release on Homebrew
-- [ ] Later: Wi-Fi details, charge limit reminders, widgets
+- [x] Wi-Fi details and open network warning
+- [ ] Later: charge limit reminders, widgets
 
 ## License
 

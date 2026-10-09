@@ -23,6 +23,7 @@ struct NetworkSection: View {
             }
             .frame(height: 24)
             .background(.quaternary.opacity(0.5), in: .rect(cornerRadius: 3))
+            wifiRow
             let apps = byApp
             ForEach(0..<Self.rows, id: \.self) { index in
                 if let apps, index < apps.count {
@@ -36,6 +37,40 @@ struct NetworkSection: View {
                     Color.clear.frame(height: AppRow.height)
                 }
             }
+        }
+    }
+
+    private var wifiRow: some View {
+        HStack(spacing: 6) {
+            Image(systemName: model.wifi == nil ? "wifi.slash" : "wifi", variableValue: signalLevel)
+                .foregroundStyle(model.wifi?.security.isInsecure == true ? .orange : .secondary)
+                .frame(width: 16)
+            if let wifi = model.wifi {
+                Text(wifi.security.title)
+                    .foregroundStyle(wifi.security.isInsecure ? .orange : .primary)
+                Spacer(minLength: 8)
+                Text([wifi.band, "\(wifi.rssi) dBm", "\(Int(wifi.txRate)) Mb/s"]
+                    .compactMap { $0 }.joined(separator: " · "))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("Not on Wi-Fi")
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+        }
+        .lineLimit(1)
+        .frame(height: AppRow.height)
+        .help(model.wifi?.channel.map { "Channel \($0)" } ?? "")
+    }
+
+    private var signalLevel: Double {
+        switch model.wifi?.signal {
+        case .excellent: 1
+        case .good: 0.7
+        case .fair: 0.4
+        case .poor: 0.1
+        case nil: 0
         }
     }
 

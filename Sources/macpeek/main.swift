@@ -12,6 +12,8 @@ struct Status: Encodable {
     let vpnConnected: Bool
     let vpnInterface: String?
     let vpnName: String?
+    let wifiSecurity: String?
+    let wifiRSSI: Int?
 }
 
 func readStatus() -> Status {
@@ -23,9 +25,11 @@ func readStatus() -> Status {
     let memory = MemorySampler.read()
     let disk = DiskInfo.read()
     let vpn = VPNDetector.evaluate(VPNDetector.read())
+    let wifi = WiFiInfo.read()
     return Status(cpu: (cpu * 1000).rounded() / 1000, memoryUsed: memory?.used, memoryTotal: memory?.total,
                   memoryPressure: memory?.pressure.rawValue, diskFree: disk?.free, diskTotal: disk?.total,
-                  vpnConnected: vpn.connected, vpnInterface: vpn.interface, vpnName: vpn.name)
+                  vpnConnected: vpn.connected, vpnInterface: vpn.interface, vpnName: vpn.name,
+                  wifiSecurity: wifi?.security.rawValue, wifiRSSI: wifi?.rssi)
 }
 
 let arguments = Array(CommandLine.arguments.dropFirst())
@@ -42,6 +46,9 @@ case "status":
             print("Memory  \(Format.memory(used)) of \(Format.memory(total)) (\(status.memoryPressure ?? "normal"))")
         }
         if let free = status.diskFree { print("Disk    \(Format.bytes(free)) free") }
+        if let security = status.wifiSecurity, let rssi = status.wifiRSSI {
+            print("Wi-Fi   \(WiFiSecurity(rawValue: security)?.title ?? security), \(rssi) dBm")
+        }
         print("VPN     \(status.vpnConnected ? (status.vpnName ?? status.vpnInterface ?? "on") : "off")")
     }
 default:

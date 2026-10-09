@@ -44,8 +44,13 @@ struct PrivacySection: View {
         .background(tint.opacity(0.13), in: .rect(cornerRadius: 12, style: .continuous))
     }
 
+    private var openWiFi: Bool {
+        model.report?.verdict == .unprotected && model.onOpenWiFi
+    }
+
     private var icon: String {
-        switch model.report?.verdict {
+        if openWiFi { return "wifi.exclamationmark" }
+        return switch model.report?.verdict {
         case .protected: "checkmark.shield.fill"
         case .leaking: "exclamationmark.shield.fill"
         case .unprotected, nil: "shield.slash.fill"
@@ -53,7 +58,8 @@ struct PrivacySection: View {
     }
 
     private var tint: Color {
-        switch model.report?.verdict {
+        if openWiFi { return .orange }
+        return switch model.report?.verdict {
         case .protected: .green
         case .leaking: .orange
         case .unprotected, nil: Color(nsColor: .systemGray)
@@ -62,6 +68,7 @@ struct PrivacySection: View {
 
     private var subtitle: String {
         guard let report = model.report else { return "Looking up your connection" }
+        if openWiFi { return "Open Wi-Fi, traffic isn't encrypted" }
         switch report.verdict {
         case .leaking:
             return report.dns == .exposed ? "DNS requests go around the VPN" : "IPv6 traffic goes around the VPN"
@@ -113,6 +120,10 @@ struct PrivacySection: View {
             }
             ValueRow(label: "Location", value: fullPlace(report?.ip) ?? "—")
             ValueRow(label: "Provider", value: report?.ip?.isp ?? "—")
+            if let wifi = model.wifi {
+                ValueRow(label: "Wi-Fi", value: wifi.security.isInsecure ? "\(wifi.security.title), not encrypted" : wifi.security.title,
+                         valueColor: model.onOpenWiFi ? .orange : .secondary)
+            }
             if let dns = report?.dns, dns != .unknown {
                 ValueRow(label: "DNS", value: dns == .protected ? "Through the VPN" : "Around the VPN",
                          valueColor: dns == .exposed ? .orange : .secondary)
